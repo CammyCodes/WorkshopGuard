@@ -141,7 +141,15 @@ with authentication, or use an SSH tunnel (`ssh -L 8080:localhost:8080 your-vps`
 
 ## Games
 
-Any app ID works with generic checks. These have tuned profiles (what a normal item contains):
+**Any Steam game with a Workshop works**: give its app ID. Two things differ from game to game:
+
+- **Who can download.** Some games let anyone download their Workshop items (Black Ops III, Left 4 Dead 2). Others
+  only serve them to an account that owns the game (PlateUp!, Teardown). WorkshopGuard tries anonymously first,
+  remembers the answer per game, and tells you if it needs an account, or if your account doesn't own the game.
+- **How tuned the file checks are.** Every scanner runs on every game. The games below also have a profile of what a
+  normal item contains, so an out-of-place `.exe` or DLL stands out more.
+
+These have tuned profiles:
 
 | Game | Name | App ID | Anonymous download |
 |---|---|---|---|

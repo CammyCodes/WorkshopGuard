@@ -76,7 +76,10 @@ class Downloader:
                 "Run: docker compose run --rm guard login")
         results: dict[str, DownloadResult] = {}
         for m in OK_RE.finditer(out):
-            results[m.group(1)] = DownloadResult(m.group(1), Path(m.group(2)))
+            path = Path(m.group(2))
+            if path.is_file():  # legacy items (older Source games) come back as one "<id>_legacy.bin" file
+                path = path.parent
+            results[m.group(1)] = DownloadResult(m.group(1), path)
         for m in FAIL_RE.finditer(out):
             if m.group(1) not in results:
                 results[m.group(1)] = DownloadResult(m.group(1), None, m.group(2) or "Timeout")
@@ -110,6 +113,11 @@ class Downloader:
                     for r in failures:
                         r.error = ("This game only serves Workshop files to an account that owns it. Set "
                                    "STEAM_USERNAME and run: docker compose run --rm guard login")
+            if login[1] != "anonymous":
+                for r in res.values():
+                    if r.error == "Failure":
+                        r.error = (f"Steam refused the download for account '{self.username}'. That account probably "
+                                   "doesn't own this game, which it needs to for this game's Workshop.")
             results.update(res)
             pending = [i for i, r in res.items() if not r.path and "Timeout" in r.error]
         return results
