@@ -3,3 +3,5 @@
 tests
 custom-rules
 **/__pycache__
+.gate
+gate.pyw

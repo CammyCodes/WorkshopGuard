@@ -85,6 +85,21 @@ Workshop mods for malware.
    means. Don't commit, push or publish anything.
 ```
 
+## Guard your own game launches (Windows)
+
+The **launch gate** runs on your PC between Steam and the game, with no Docker needed. Every installed mod is
+hashed each launch. Anything new or updated is scanned (with Microsoft Defender as well as WorkshopGuard's own engines)
+**before the game starts**, so nothing in a mod can run first. If nothing changed, the game starts in about half a
+second with no window. Dangerous mods are quarantined, suspicious ones are your call, and for PlateUp it checks the
+game's own log to confirm it loaded only checked mods.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-gate.ps1     # PlateUp!, or -Game <name or app ID>
+```
+
+How it works, settings and its limits: [docs/GATE.md](docs/GATE.md). **PlateUp! players and developers:** there's a
+PlateUp! edition with its own look, and a page for the game's team: [docs/PLATEUP.md](docs/PLATEUP.md).
+
 ## Deep scans
 
 To throw everything at one mod:
