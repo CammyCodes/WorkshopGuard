@@ -5,6 +5,8 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  schedule:
+    - cron: "17 4 * * 1"  # weekly rebuild: fresh capa and YARA Forge rules
 
 permissions:
   contents: read

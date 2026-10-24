@@ -1,52 +1,36 @@
-# WorkshopGuard
+<p align="center"><img src="docs/banner.png" alt="WorkshopGuard: a pixel-art shield with a checkmark, squashing a little red bug, beside the WORKSHOP GUARD wordmark" width="100%"></p>
 
-Malware scanning for the Steam Workshop that anyone can run. Pick your game, start it with Docker, and it checks
-every new upload and every update to existing items, then tells you (Discord, webhook, dashboard) when something looks
-dangerous.
+<p align="center">
+  <img alt="Steam Workshop" src="https://img.shields.io/badge/Steam-Workshop-1B2838">
+  <img alt="Runs in Docker" src="https://img.shields.io/badge/runs%20in-Docker-4A90E2">
+  <img alt="Engines" src="https://img.shields.io/badge/engines-7%20local%20%2B%203%20online-2E68B6">
+  <img alt="Any game" src="https://img.shields.io/badge/games-any%20with%20a%20Workshop-E2484D">
+  <a href="https://github.com/CammyCodes/WorkshopGuard/actions"><img alt="CI" src="https://github.com/CammyCodes/WorkshopGuard/actions/workflows/docker.yml/badge.svg"></a>
+</p>
 
-Steam Workshop malware isn't hypothetical any more. In 2026 alone: People Playground was hit twice (a self-spreading
-mod that republished itself from victims' accounts), PlateUp! had a mod that turned malicious the day after upload,
-and Project Zomboid banned 14 mods hiding obfuscated code. Valve doesn't scan mod code, so the communities that care
-about a game have to watch it themselves. WorkshopGuard makes that a five-minute job.
+**WorkshopGuard** scans Steam Workshop mods for malware. Pick a game, start it in Docker, and every new upload and
+every update gets checked by up to ten engines. Dodgy ones are reported to Discord, and can be moved out of your
+own Steam folder before the game loads them.
+
+Workshop malware is real now: in 2026 it hit People Playground (twice), PlateUp! and Project Zomboid. Valve doesn't
+scan mod code, so WorkshopGuard lets anyone who cares about a game watch it.
 
 ## What it does
 
-```
- Steam Workshop ──► new uploads + updates ──► SteamCMD download ──► scanners ──► verdict ──► Discord / webhook
-   (any game)        (checked every 15 min)     (in Docker)          │            clean       dashboard
-                                                                     │            suspicious  quarantine
-                                                                     ▼            malicious
-                       ClamAV · YARA rules for Workshop malware · .NET mod analysis · PE imports · file checks
-```
+- **Watches a game's Workshop** for new items and updates (a good mod turning bad in an update is the usual trick),
+  and can scan everything already there.
+- **Scans each mod with many engines**: ClamAV, WorkshopGuard's own rules for Workshop malware, YARA Forge's community
+  rules, Mandiant's capa, a .NET mod analyzer, Windows program checks and per-game file checks, plus VirusTotal,
+  MetaDefender and MalwareBazaar if you add free keys.
+- **Protects your PC**: point it at Steam's Workshop folder and new or updated mods are scanned as Steam installs
+  them. Malicious ones are moved to quarantine.
+- **Tells you why**: plain-English reasons per verdict, alerts to Discord or any webhook, and a local dashboard.
 
-- **Watches** a game's Workshop for new items and updates (an update that turns a good mod bad is the usual trick),
-  and can scan everything already there once.
-- **Downloads** items with SteamCMD, anonymously where the game allows it, otherwise with an account you log in once.
-- **Scans** every file, including inside zip archives:
-  - **ClamAV** antivirus signatures, kept up to date automatically.
-  - **YARA rules for Workshop malware**: Steam session theft (`ssfn`, `loginusers.vdf`), Discord token grabbers,
-    browser password stealers, webhook exfiltration, PowerShell/batch droppers, persistence, wipers, Lua and C#
-    backdoors, mods that republish themselves to the Workshop or message your friends.
-  - **.NET mod analysis** (PlateUp, RimWorld, Cities: Skylines and other Unity/C# games): reads what the mod's
-    code calls without running it. Single capabilities are normal (KitchenLib talks to the internet, Harmony patches
-    code); it's the combinations malware needs that raise the alarm, like *download + load as code* or *read Steam
-    login files + send them out*.
-  - **Windows executables**: dangerous imports, packers.
-  - **File checks** per game: an `.exe`, `.bat` or DLL in a Black Ops III map, a program hiding under a `.png`
-    name, password-protected archives.
-  - **VirusTotal** hash lookups (optional; only hashes are sent).
-  - **Copycats**: an item with the same title as an older item by a different uploader.
-- **Reports**: `clean`, `suspicious` (worth a human look) or `malicious` (strong evidence), with plain-English
-  reasons, sent to Discord or any webhook and shown on a local dashboard. Flagged files are kept in quarantine.
-
-Downloaded files are **never run**. They're read as data inside a locked-down container (read-only filesystem, no
-Linux capabilities, no privilege escalation).
+Downloaded files are only ever read, never run, inside a locked-down container.
 
 ## Quick start
 
-You need Docker on a machine that's always on: a VPS, a home server, a NAS, or your own PC. It needs an x86-64 CPU
-(SteamCMD has no ARM build), about 2 GB of RAM with ClamAV (300 MB without), and disk space for the biggest item you
-want to scan.
+You need Docker on a machine that's always on (a VPS, home server or your PC) with an x86-64 CPU and about 2 GB of RAM.
 
 ```bash
 git clone https://github.com/CammyCodes/WorkshopGuard.git
@@ -54,153 +38,114 @@ cd WorkshopGuard
 cp .env.example .env
 ```
 
-Open `.env` and set the game. That's the only required setting:
+In `.env`, set the game, by name or by the number in its store URL (`store.steampowered.com/app/1599600/...`), and
+optionally where alerts go:
 
 ```ini
-GAMES=plateup          # or an app ID: GAMES=1599600 — several: GAMES=plateup,bo3
-DISCORD_WEBHOOK_URL=   # optional: where alerts go
+GAMES=plateup                # or GAMES=1599600, or several: GAMES=plateup,bo3
+DISCORD_WEBHOOK_URL=         # Discord channel > Integrations > Webhooks > Copy URL
+STEAM_WORKSHOP_DIR=          # optional, protect your PC: .../steamapps/workshop/content
 ```
-
-The app ID is the number in the game's store URL (`store.steampowered.com/app/1599600/...`). Any game with a Workshop
-works; [known games](#games) get tuned file checks.
 
 ```bash
 docker compose up -d
+docker compose run --rm guard selftest     # plants a harmless fake detection and checks every step
 ```
 
-Open <http://localhost:8080> for the dashboard. The first check runs straight away.
+The dashboard is at <http://localhost:8080>.
 
-### Games that need a Steam account
-
-Some games (Black Ops III, many others) let anyone download their Workshop items. Others (PlateUp! for one) only give
-them to an account that owns the game, and WorkshopGuard will tell you so in the dashboard. For those:
-
-1. Set `STEAM_USERNAME=` in `.env` to an account that owns the game. A spare account is best.
-2. Log in once (SteamCMD asks for the password and Steam Guard code; only Steam's login token is kept):
-   ```bash
-   docker compose run --rm guard login
-   ```
-   On Windows, `.\scripts\steam-login.ps1` does steps 1 and 2 for you. With the Steam Mobile authenticator, approve
-   the login on your phone when SteamCMD says "Waiting for confirmation".
-3. `docker compose up -d` again. Items that failed are retried straight away.
-
-### Check it works (fake detection)
+**Some games need a Steam account.** Black Ops III and Left 4 Dead 2 let anyone download Workshop items, but PlateUp!
+and Teardown only serve them to an account that owns the game. WorkshopGuard tells you when that's the case. Set
+`STEAM_USERNAME` in `.env`, then log in once (you type the password and approve Steam Guard yourself):
 
 ```bash
-docker compose run --rm guard selftest bo3
+docker compose run --rm guard login     # Windows: .\scripts\steam-login.ps1
 ```
 
-This downloads a real item, plants two harmless test files in it (the standard EICAR antivirus test file and a
-WorkshopGuard test marker), scans it, records it and sends a `[TEST]` alert to your webhook. Every step prints
-PASS/FAIL.
+## Set it up with Claude
+
+Paste this into [Claude Code](https://claude.com/claude-code) and it'll do the setup with you:
+
+```text
+Set up WorkshopGuard (https://github.com/CammyCodes/WorkshopGuard) for me: a Docker service that scans Steam
+Workshop mods for malware.
+
+1. Check Docker is installed and running. If it isn't, tell me how to install it and stop.
+2. Clone the repo, copy .env.example to .env, and read the README.
+3. Ask me which game(s) to watch (a name or Steam app ID), and whether I want alerts in Discord (I'll paste a
+   webhook URL) and protection for the mods on this PC (find my Steam workshop/content folder and confirm it).
+   Fill those into .env. Leave BACKFILL=none unless I ask to scan everything already on the Workshop.
+4. Run `docker compose up -d`, then `docker compose run --rm guard selftest <game>`.
+5. If the self-test says the game needs an account that owns it: ask for my Steam account name, put it in
+   STEAM_USERNAME, and run `docker compose run --rm guard login` in a terminal I can type in. Never ask for, type
+   or store my password or Steam Guard code: I enter those myself. Then run the self-test again.
+6. Show me the dashboard at http://localhost:8080 and tell me in two lines what's running and what each alert
+   means. Don't commit, push or publish anything.
+```
+
+## Deep scans
+
+To throw everything at one mod:
+
+```bash
+docker compose run --rm guard deep-scan plateup 3819935407
+```
+
+That runs every engine available and prints what each one said. `--upload` also sends files VirusTotal and
+MetaDefender have never seen for a full scan (off by default, since uploads are shared with security vendors).
+
+| Engine | What it catches | Needs |
+|---|---|---|
+| ClamAV | Known malware signatures, updated daily | – |
+| WorkshopGuard rules | Steam/Discord/browser account theft, webhook exfiltration, droppers, wipers, persistence, Lua and C# backdoors, mods that republish themselves or message your friends | – |
+| YARA Forge | Thousands of community rules for known malware families | – |
+| capa (Mandiant) | Hostile capabilities in programs: keylogging, screenshots, persistence, destruction | – |
+| .NET mod analysis | What a Unity/C# mod's code calls, and the combinations malware needs (download + run, read secrets + send) | – |
+| Windows program checks | Dangerous imports, packers, programs disguised as images | – |
+| File checks | Anything out of place for that game: an `.exe` in a map, a `.bat`, a locked archive, copycat titles | – |
+| VirusTotal | ~70 antivirus engines | free key |
+| MetaDefender | ~20 antivirus engines | free key |
+| MalwareBazaar | abuse.ch's database of known malware | free key |
+
+## What it can't do
+
+No scanner catches everything, and WorkshopGuard is no exception. It reads mods without running them, so:
+
+- Brand-new tricks that no rule describes yet can get past it.
+- A mod can download its real payload *after* it's been scanned. WorkshopGuard flags the "download, then run or load
+  code" pattern that needs, but a well-hidden one can slip through.
+- Protect mode scans mods as Steam installs them. If the game starts in the same few seconds, it may load a mod first.
+
+Treat **malicious** as "remove it now and report it to Valve", **suspicious** as "a person should look", and
+**clean** as "nothing found", not "guaranteed safe". Please check before accusing a mod author publicly.
 
 ## Commands
 
-All commands run as `docker compose run --rm guard <command>`.
+`docker compose run --rm guard <command>`:
 
-| Command | What it does |
+| | |
 |---|---|
 | `watch` | The default: watch, scan and alert forever |
 | `selftest [game]` | Fake detection end to end, including the alert |
-| `scan-item <game> <id> [<id>...]` | Scan specific items now (`--inject-test` plants the fake detection) |
-| `scan-path <game> <folder>` | Scan items already on disk, e.g. your own `steamapps/workshop/content/<appid>` |
-| `login` | Log SteamCMD in once for games that need an account |
-| `list <game>` | Show the newest items (`--sort lastupdated`, `--pages N`) |
-| `status` | Counts and the latest flagged items |
-| `rescan --all` | Scan everything again, e.g. after adding rules |
+| `deep-scan <game> <id>...` | Every engine on specific mods (`--upload`, `--inject-test`) |
+| `scan-item <game> <id>...` | Scan specific mods with your normal engines |
+| `scan-path <game> <folder>` | Scan mods already on disk (`--deep`) |
+| `protect [--once]` | Only guard the mods on this PC |
+| `login` | Log SteamCMD in once, for games that need an account |
+| `list <game>` · `status` · `rescan --all` | Newest items · flagged items · scan everything again |
 
-Scan the mods you already have installed (mount the folder read-only):
-
-```bash
-docker compose run --rm -v "C:/Program Files (x86)/Steam/steamapps/workshop/content/1599600:/scan:ro" guard scan-path plateup /scan
-```
-
-## Settings
-
-All in `.env` (see `.env.example` for the full list):
-
-| Setting | Default | |
-|---|---|---|
-| `GAMES` | `plateup` | Comma-separated app IDs or names |
-| `BACKFILL` | `none` | On first start, scan `none`, `all`, or the N most recently updated existing items |
-| `POLL_MINUTES` | `15` | How often to check for new uploads and updates |
-| `MAX_ITEM_MB` | `2048` | Skip bigger items (some maps are over 10 GB) |
-| `STEAM_USERNAME` | | Account for games that block anonymous downloads |
-| `DISCORD_WEBHOOK_URL` | | Discord alerts |
-| `WEBHOOK_URL` | | JSON alerts to anything else (Slack-compatible `text` field included) |
-| `NOTIFY_ON` | `malicious,suspicious` | Which verdicts alert |
-| `PUBLIC_URL` | | Your dashboard's address, for links in alerts |
-| `VIRUSTOTAL_API_KEY` | | Hash lookups for executables |
-| `QUARANTINE_FLAGGED` | `true` | Keep flagged items in the data volume for review |
-
-**Your own rules:** drop `.yar` files into `custom-rules/`. Give each a `severity` (`info` to `critical`) and a
-`description` in its `meta`; a `critical` match makes the item `malicious`.
-
-**Dashboard access:** it listens on `127.0.0.1:8080` only. To reach it from elsewhere, put it behind a reverse proxy
-with authentication, or use an SSH tunnel (`ssh -L 8080:localhost:8080 your-vps`).
-
-## Games
-
-**Any Steam game with a Workshop works**: give its app ID. Two things differ from game to game:
-
-- **Who can download.** Some games let anyone download their Workshop items (Black Ops III, Left 4 Dead 2). Others
-  only serve them to an account that owns the game (PlateUp!, Teardown). WorkshopGuard tries anonymously first,
-  remembers the answer per game, and tells you if it needs an account, or if your account doesn't own the game.
-- **How tuned the file checks are.** Every scanner runs on every game. The games below also have a profile of what a
-  normal item contains, so an out-of-place `.exe` or DLL stands out more.
-
-These have tuned profiles:
-
-| Game | Name | App ID | Anonymous download |
-|---|---|---|---|
-| PlateUp! | `plateup` | 1599600 | No, needs an owning account |
-| Call of Duty: Black Ops III | `bo3` | 311210 | Yes |
-| People Playground | `peopleplayground` | 1118200 | |
-| Project Zomboid | `zomboid` | 108600 | |
-| Garry's Mod | `gmod` | 4000 | |
-| RimWorld | `rimworld` | 294100 | |
-| Tabletop Simulator | `tts` | 286160 | |
-| Cities: Skylines | `cities` | 255710 | |
-| Wallpaper Engine | `wallpaperengine` | 431960 | |
-
-Adding a game is a few lines in [`workshopguard/games.py`](workshopguard/games.py).
-
-## Reading a verdict
-
-- **malicious**: strong evidence, like a known antivirus signature, a download-and-run pattern, code that reads
-  Steam/Discord/browser secrets and can send them out, or a program disguised as an image. Unsubscribe and report the
-  item to Valve from its Workshop page.
-- **suspicious**: something a normal item for this game wouldn't have. Look at the reasons; it may be fine (an
-  update checker, a bundled tool) or it may be the start of something.
-- **clean**: nothing found. Not a guarantee: obfuscated or brand-new techniques can get past any scanner.
-
-A flag is a reason to look closer, not proof. Please check before accusing a mod author publicly.
-
-## How it works
-
-- **Listing** reads the public Workshop browse pages (no API key needed), newest first and most recently updated
-  first, and remembers each item's `time_updated` so updates get rescanned.
-- **Details** come from Steam's keyless `GetPublishedFileDetails` API, including Steam's own ban flag.
-- **Downloads** go through SteamCMD inside the container. SteamCMD and its login token live in the `guard-data` volume.
-- **State** is a SQLite database in the same volume. JSON API: `/api/items?verdict=malicious`, `/api/stats`.
+Every setting is explained in [`.env.example`](.env.example). Your own YARA rules go in `custom-rules/`.
 
 ## Development
 
 ```bash
-sh tests/build_fixtures.sh   # builds an inert fake "stealer" mod + a fake booby-trapped BO3 map
-docker compose run --rm --entrypoint python -v ./tests:/app/tests:ro guard -m pytest -q /app/tests
-docker compose run --rm -v ./tests/fixtures/out:/fx:ro guard scan-path plateup /fx/plateup --offline
+sh tests/build_fixtures.sh   # an inert fake "stealer" mod and a booby-trapped fake BO3 map
+docker compose run --rm --entrypoint sh -v ./tests:/app/tests:ro guard -c "pip install -q --user pytest && python -m pytest -q /app/tests"
 ```
 
-`docker-compose.test.yml` adds a local webhook receiver so you can watch alerts arrive without Discord:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
-docker compose -f docker-compose.yml -f docker-compose.test.yml logs -f sink
-```
-
-The test fixtures are not malware: they reference the same APIs real Workshop malware uses, but nothing in them is
-ever called and every address points at the reserved `.invalid` domain.
+`docker-compose.test.yml` adds a local webhook receiver for testing alerts. The fixtures aren't malware: nothing in
+them is ever called, and every address is on the reserved `.invalid` domain. The banner is drawn by
+`tools/logo/make_logo.py`.
 
 ## Licence
 

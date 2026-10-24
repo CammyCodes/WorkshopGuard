@@ -116,3 +116,77 @@ def test_discord_payload_shape():
     e = notify.discord_embed(p)["embeds"][0]
     assert e["title"].startswith("[TEST]") and "bad" in e["description"]
     assert any(f["name"] == "Changed" for f in e["fields"])
+
+
+# --- online engines: response handling, with the HTTP layer faked (no keys needed) ---------------------------
+
+class _Resp:
+    def __init__(self, status, body):
+        self.status_code, self._body = status, body
+
+    def json(self):
+        return self._body
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import requests
+            raise requests.HTTPError(str(self.status_code))
+
+
+class _Session:
+    def __init__(self, get=None, post=None):
+        self.headers, self._get, self._post = {}, get, post
+
+    def get(self, *a, **k):
+        return self._get
+
+    def post(self, *a, **k):
+        return self._post
+
+
+def test_virustotal_parsing():
+    from workshopguard.scan.online import VirusTotal
+    vt = VirusTotal("k", per_minute=6000)
+    vt.session = _Session(get=_Resp(200, {"data": {"attributes": {"last_analysis_stats": {
+        "malicious": 41, "suspicious": 0, "undetected": 20, "harmless": 0}}}}))
+    status, f = vt.check("ab" * 32, b"x", "a.dll", "a.dll")
+    assert status == "detected" and f.severity == "critical" and "41/61" in f.description
+    vt.session = _Session(get=_Resp(404, {}))
+    assert vt.check("ab" * 32, b"x", "a.dll", "a.dll") == ("unknown", None)
+
+
+def test_metadefender_parsing():
+    from workshopguard.scan.online import MetaDefender
+    md = MetaDefender("k")
+    md.t.gap = 0
+    md.session = _Session(get=_Resp(200, {"scan_results": {"total_detected_avs": 0, "total_avs": 21}}))
+    assert md.check("cd" * 32, b"x", "a.dll", "a.dll") == ("clean", None)
+    md.session = _Session(get=_Resp(200, {"scan_results": {"total_detected_avs": 1, "total_avs": 21}}))
+    status, f = md.check("cd" * 32, b"x", "a.dll", "a.dll")
+    assert status == "detected" and f.severity == "medium"
+
+
+def test_malwarebazaar_parsing():
+    from workshopguard.scan.online import MalwareBazaar
+    mb = MalwareBazaar("k")
+    mb.session = _Session(post=_Resp(200, {"query_status": "ok", "data": [{"signature": "RedLineStealer"}]}))
+    status, f = mb.check("ef" * 32, b"x", "a.dll", "a.dll")
+    assert status == "detected" and f.severity == "critical" and "RedLineStealer" in f.description
+    mb.session = _Session(post=_Resp(200, {"query_status": "hash_not_found"}))
+    assert mb.check("ef" * 32, b"x", "a.dll", "a.dll") == ("unknown", None)
+
+
+def test_protect_fingerprint_changes(tmp_path):
+    from workshopguard.protect import fingerprint
+    (tmp_path / "a.dll").write_bytes(b"1")
+    before = fingerprint(tmp_path)
+    (tmp_path / "b.txt").write_bytes(b"22")
+    assert fingerprint(tmp_path) != before
+
+
+def test_capa_weights():
+    from workshopguard.scan.capa_engine import _weigh
+    assert _weigh("collection/keylog/hook") == "high"
+    assert _weigh("persistence/registry/run") == "high"
+    assert _weigh("impact/cryptocurrency") == "low"       # matches words like "Dash" in normal mods
+    assert _weigh("load-code/dotnet") is None              # Harmony/MonoMod do this all the time

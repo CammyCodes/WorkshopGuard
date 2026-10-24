@@ -41,6 +41,14 @@ class Config:
     clamav_host: str = ""
     clamav_port: int = 3310
     virustotal_api_key: str = ""
+    metadefender_api_key: str = ""
+    malwarebazaar_api_key: str = ""
+    # local engines to run; online ones switch on when their key is set
+    engines: set[str] = field(default_factory=lambda: {"clamav", "yara", "yara-forge", "capa"})
+    upload_unknown: bool = False
+    protect_dir: Path = Path("/protect")
+    protect_action: str = "quarantine"   # quarantine | alert
+    protect_seconds: int = 60
 
     discord_webhook_url: str = ""
     webhook_url: str = ""
@@ -84,6 +92,13 @@ def load() -> Config:
         clamav_host=_env("CLAMAV_HOST"),
         clamav_port=_int("CLAMAV_PORT", 3310),
         virustotal_api_key=_env("VIRUSTOTAL_API_KEY"),
+        metadefender_api_key=_env("METADEFENDER_API_KEY"),
+        malwarebazaar_api_key=_env("MALWAREBAZAAR_API_KEY"),
+        engines={e.strip().lower() for e in _env("ENGINES", "clamav,yara,yara-forge,capa").split(",") if e.strip()},
+        upload_unknown=_bool("UPLOAD_UNKNOWN", False),
+        protect_dir=Path(_env("PROTECT_DIR", "/protect")),
+        protect_action=_env("PROTECT_ACTION", "quarantine").lower(),
+        protect_seconds=_int("PROTECT_SECONDS", 60),
         discord_webhook_url=_env("DISCORD_WEBHOOK_URL"),
         webhook_url=_env("WEBHOOK_URL"),
         notify_on={s.strip().lower() for s in _env("NOTIFY_ON", "malicious,suspicious").split(",") if s.strip()},
@@ -92,6 +107,8 @@ def load() -> Config:
         dashboard_host=_env("DASHBOARD_HOST", "0.0.0.0"),
         extra_rules_dir=Path(_env("EXTRA_RULES_DIR", "/rules")),
     )
+    if c.protect_action not in ("quarantine", "alert"):
+        raise ValueError("PROTECT_ACTION must be quarantine or alert")
     if c.backfill not in ("none", "all") and not c.backfill.isdigit():
         raise ValueError("BACKFILL must be none, all or a number")
     for d in (c.data_dir, c.work_dir, c.quarantine_dir, c.steam_dir):

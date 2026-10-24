@@ -29,19 +29,59 @@ def _print_result(title: str, res) -> None:
             print(f"              {e}")
     if minor and not verbose:
         print(f"   (+{minor} low/info notes; -v to show them)")
+    if res.engines:
+        print()
+        print("   engine                                   files  flagged  result")
+        for e in res.engines.values():
+            if e["errors"] and not e["detections"]:
+                result = f"{e['errors']} error(s)"
+            elif e["detections"]:
+                result = "FLAGGED"
+            elif e.get("notes"):
+                result = f"clean ({e['notes']} file(s) worth a look)"
+            elif e["files"] == 0:
+                result = "nothing to check"
+            elif e["unknown"] == e["files"]:
+                result = "never seen these files"
+            else:
+                result = "clean"
+            print(f"   {e['label']:<40} {e['files']:>5}  {e['detections']:>7}  {result}")
 
 
 def cmd_watch(cfg, args):
     from .pipeline import Guard
     from .web import Dashboard
-    guard = Guard(cfg)
+    from .protect import Protector
+    guard = Guard(cfg, watcher=True)
     Dashboard(guard.db, cfg.dashboard_host, cfg.dashboard_port).start()
+    protector = Protector(guard)
+    if protector.enabled():
+        protector.start_thread()
     guard.run_forever()
+
+
+def cmd_protect(cfg, args):
+    """Only guard the mods on this PC (no Workshop watching)."""
+    from .pipeline import Guard
+    from .protect import Protector
+    from .web import Dashboard
+    guard = Guard(cfg)
+    protector = Protector(guard)
+    if not protector.enabled():
+        print(f"Nothing to protect: mount Steam's workshop/content folder at {cfg.protect_dir} "
+              f"(it should contain folders named {', '.join(str(g.appid) for g in cfg.games)}).")
+        return 2
+    Dashboard(guard.db, cfg.dashboard_host, cfg.dashboard_port).start()
+    if args.once:
+        n = protector.sweep()
+        print(f"Scanned {n} new/changed item(s).")
+        return 0
+    protector.run_forever()
 
 
 def cmd_scan_item(cfg, args):
     from .pipeline import Guard
-    guard = Guard(cfg)
+    guard = Guard(cfg, deep=args.deep, upload=args.upload or None)
     p = games.resolve(args.game)
     items = {it.id: it for it in steam.details(args.ids, p.appid)}
     missing = [i for i in args.ids if i not in items]
@@ -70,7 +110,7 @@ def cmd_scan_item(cfg, args):
 def cmd_scan_path(cfg, args):
     """Scan a folder already on disk, e.g. your own Steam workshop/content/<appid> folder mounted read-only."""
     from .pipeline import Guard
-    guard = Guard(cfg)
+    guard = Guard(cfg, deep=args.deep, upload=args.upload or None)
     root = Path(args.path)
     p = games.resolve(args.game)
     folders = [root] if args.single else sorted(d for d in root.iterdir() if d.is_dir())
@@ -171,12 +211,28 @@ def main(argv=None) -> int:
     s.add_argument("--inject-test", action="store_true", help="Plant harmless fake-malware files to test detection")
     s.add_argument("--no-notify", action="store_true")
     s.add_argument("--keep", action="store_true", help="Keep the downloaded files in /data/work")
+    s.add_argument("--deep", action="store_true", help="Run every engine available (same as deep-scan)")
+    s.add_argument("--upload", action="store_true",
+                   help="Upload files VirusTotal/MetaDefender have never seen, for a full multi-engine scan")
+    s = sub.add_parser("deep-scan", help="Scan items with every engine available and show what each one said")
+    s.add_argument("game")
+    s.add_argument("ids", nargs="+")
+    s.add_argument("--upload", action="store_true",
+                   help="Upload files VirusTotal/MetaDefender have never seen, for a full multi-engine scan")
+    s.add_argument("--inject-test", action="store_true")
+    s.add_argument("--no-notify", action="store_true")
+    s.add_argument("--keep", action="store_true")
+    s.set_defaults(deep=True)
+    s = sub.add_parser("protect", help="Guard the mods installed on this PC (mount Steam's workshop/content at /protect)")
+    s.add_argument("--once", action="store_true", help="Scan once and exit")
     s = sub.add_parser("scan-path", help="Scan folders already on disk (each subfolder = one item)")
     s.add_argument("game")
     s.add_argument("path")
     s.add_argument("--single", action="store_true", help="PATH is one item, not a folder of items")
     s.add_argument("--offline", action="store_true", help="Don't look item titles up on Steam")
     s.add_argument("--no-notify", action="store_true")
+    s.add_argument("--deep", action="store_true", help="Run every engine available")
+    s.add_argument("--upload", action="store_true")
     s = sub.add_parser("selftest", help="Fake detection end to end (real download + planted test files + alert)")
     s.add_argument("game", nargs="?", default="")
     s.add_argument("--item", default="")
@@ -206,7 +262,7 @@ def main(argv=None) -> int:
     if getattr(args, "game", None) == "":
         args.game = str(cfg.games[0].appid)
     cmd = args.cmd or "watch"
-    fn = {"watch": cmd_watch, "scan-item": cmd_scan_item, "scan-path": cmd_scan_path, "selftest": cmd_selftest,
+    fn = {"watch": cmd_watch, "scan-item": cmd_scan_item, "deep-scan": cmd_scan_item, "protect": cmd_protect, "scan-path": cmd_scan_path, "selftest": cmd_selftest,
           "login": cmd_login, "list": cmd_list, "status": cmd_status, "rescan": cmd_rescan}[cmd]
     try:
         return fn(cfg, args) or 0

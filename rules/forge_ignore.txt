@@ -1,0 +1,2 @@
+# YARA Forge rules to ignore because they fire on normal, legitimate mod files.
+# One rule name per line. Add a reason after a # so the next person knows why.

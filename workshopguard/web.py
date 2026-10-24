@@ -180,6 +180,14 @@ def _item_page(r) -> bytes:
         + "".join(f"<div><code>{E(str(e))}</code></div>" for e in f.get("evidence", [])[:6])
         + f"</td><td><code>{E(f.get('file') or '')}</code></td></tr>"
         for f in sorted(d["findings"], key=lambda f: ["critical", "high", "medium", "low", "info"].index(f["severity"])))
+    eng_rows = ""
+    for e in d["details"].get("engines", {}).values():
+        res = ("<span class='sev critical'>flagged</span>" if e["detections"] else
+               f"<span class=mut>{e['errors']} error(s)</span>" if e["errors"] else
+               "<span class=mut>nothing to check</span>" if not e["files"] else
+               "<span class=mut>never seen these files</span>" if e["unknown"] == e["files"] else
+               f"clean <span class=mut>({e['notes']} worth a look)</span>" if e.get("notes") else "clean")
+        eng_rows += f"<tr><td>{E(e['label'])}</td><td>{e['files']}</td><td>{res}</td></tr>"
     hashes = "".join(f"<tr><td><code>{E(k)}</code></td><td><code>{E(v)}</code></td></tr>"
                      for k, v in list(d["details"].get("sha256", {}).items())[:300])
     v = r["verdict"] if r["status"] == "scanned" else r["status"]
@@ -192,6 +200,8 @@ def _item_page(r) -> bytes:
             f"version {r['scanned_version'] or r['time_updated']} · scanned {_ago(r['scanned_at'])} · "
             f"{d['details'].get('files', '?')} files</p>"
             + (f"<p class=mut>{E(r['error'])}</p>" if r["error"] else "")
+            + (f"<h2>Engines</h2><div class=wrap><table><tr><th>Engine</th><th>Files</th><th>Result</th></tr>"
+               f"{eng_rows}</table></div>" if eng_rows else "")
             + f"<h2>Findings</h2>" + (f"<div class=wrap><table><tr><th>Severity</th><th>What</th><th>File</th></tr>"
                                        f"{f_rows}</table></div>" if f_rows else "<p class=mut>None.</p>")
             + (f"<h2>Files (SHA-256)</h2><div class=wrap><table>{hashes}</table></div>" if hashes else ""))

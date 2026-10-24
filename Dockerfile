@@ -8,11 +8,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # SteamCMD is a 32-bit Linux program; lib32gcc-s1 brings the 32-bit runtime it needs.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends lib32gcc-s1 ca-certificates curl tini \
+ && apt-get install -y --no-install-recommends lib32gcc-s1 ca-certificates curl tini unzip \
  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --no-cache-dir --root-user-action=ignore -r /app/requirements.txt
+
+# capa's rules and library signatures, matching the installed capa version, and YARA Forge's "core" community
+# rules. CI rebuilds the image weekly so these stay current.
+RUN V=$(pip show flare-capa | sed -n 's/^Version: //p') && mkdir -p /opt/capa /opt/yara-forge && cd /tmp \
+ && curl -fsSL -o r.zip "https://github.com/mandiant/capa-rules/archive/refs/tags/v$V.zip" \
+ && unzip -q r.zip && mv "capa-rules-$V" /opt/capa/rules \
+ && curl -fsSL -o s.zip "https://github.com/mandiant/capa/archive/refs/tags/v$V.zip" \
+ && unzip -q s.zip "capa-$V/sigs/*" && mv "capa-$V/sigs" /opt/capa/sigs \
+ && curl -fsSL -o f.zip https://github.com/YARAHQ/yara-forge/releases/latest/download/yara-forge-rules-core.zip \
+ && unzip -q -j f.zip "*yara-rules-core.yar" -d /opt/yara-forge \
+ && rm -rf /tmp/*
 
 RUN useradd -m -u 1000 guard \
  && mkdir -p /opt/steamcmd /data/steam /rules \

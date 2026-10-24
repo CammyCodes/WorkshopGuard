@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
+import os
 import shutil
 import time
 from pathlib import Path
@@ -14,9 +16,10 @@ from .db import DB
 from .downloader import Downloader, LoginRequired
 from .notify import Notifier
 from .scan.clamav import ClamAV
+from .scan import capa_engine
 from .scan.engine import Scanners, scan_dir
 from .scan.model import Finding, ScanResult, verdict_for
-from .scan.virustotal import VirusTotal
+from .scan.online import MalwareBazaar, MetaDefender, VirusTotal
 from .scan.yarascan import Yara
 
 log = logging.getLogger(__name__)
@@ -25,20 +28,29 @@ BATCH_ITEMS = 8
 
 
 class Guard:
-    def __init__(self, cfg: Config, *, with_clamav: bool = True):
+    def __init__(self, cfg: Config, *, deep: bool = False, upload: bool | None = None, watcher: bool = False):
+        """deep=True runs every engine available, whatever ENGINES says (the deep-scan command).
+        watcher=True is the long-running service; one-off commands get their own SteamCMD folder so they can run
+        while it's busy."""
         self.cfg = cfg
         self.db = DB(cfg.db_path)
-        self.dl = Downloader(cfg.work_dir / "steamcmd", cfg.steam_username)
+        install = cfg.work_dir / ("steamcmd" if watcher else f"steamcmd-cli-{os.getpid()}")
+        self.dl = Downloader(install, cfg.steam_username)
         self.dl.anon_ok = {int(k): v for k, v in (self.db.get("anon_ok", {}) or {}).items()}
-        # recover from a restart mid-scan: requeue interrupted items, drop half-finished downloads
-        self.db.x("UPDATE items SET status='queued' WHERE status='scanning'")
-        self.dl.reset()
-        if cfg.steam_username != self.db.get("steam_username", ""):
-            # a Steam account was added or changed: retry downloads that failed for lack of one straight away
-            self.db.x("UPDATE items SET status='queued' WHERE status='error'")
-            self.db.set("steam_username", cfg.steam_username)
+        if watcher:
+            # recover from a restart mid-scan: requeue interrupted items, drop half-finished downloads
+            self.db.x("UPDATE items SET status='queued' WHERE status='scanning'")
+            self.dl.reset()
+            if cfg.steam_username != self.db.get("steam_username", ""):
+                # a Steam account was added or changed: retry downloads that failed for lack of one straight away
+                self.db.x("UPDATE items SET status='queued' WHERE status='error'")
+                self.db.set("steam_username", cfg.steam_username)
+        else:
+            atexit.register(shutil.rmtree, install, True)
+        want = cfg.engines | ({"clamav", "yara", "yara-forge", "capa"} if deep else set())
+        upload = cfg.upload_unknown if upload is None else upload
         clam = None
-        if with_clamav and cfg.clamav_host:
+        if "clamav" in want and cfg.clamav_host:
             clam = ClamAV(cfg.clamav_host, cfg.clamav_port)
             log.info("Waiting for ClamAV at %s:%s ...", cfg.clamav_host, cfg.clamav_port)
             if clam.wait_ready(900):
@@ -46,11 +58,21 @@ class Guard:
             else:
                 log.error("ClamAV never came up; scanning without it")
                 clam = None
+        online = []
+        if cfg.virustotal_api_key:
+            online.append(VirusTotal(cfg.virustotal_api_key, upload))
+        if cfg.metadefender_api_key:
+            online.append(MetaDefender(cfg.metadefender_api_key, upload))
+        if cfg.malwarebazaar_api_key:
+            online.append(MalwareBazaar(cfg.malwarebazaar_api_key))
         self.scanners = Scanners(
-            yara=Yara(cfg.extra_rules_dir),
+            yara=Yara(cfg.extra_rules_dir, forge="yara-forge" in want) if "yara" in want else None,
             clamav=clam,
-            virustotal=VirusTotal(cfg.virustotal_api_key) if cfg.virustotal_api_key else None,
+            capa="capa" in want and capa_engine.available(),
+            online=online,
+            cache=self.db,
         )
+        log.info("Engines: %s", ", ".join(self.scanners.enabled()))
         self.notifier = Notifier(cfg.discord_webhook_url, cfg.webhook_url, cfg.notify_on, cfg.public_url)
 
     # --- discovery --------------------------------------------------------------------------------------------
@@ -166,9 +188,7 @@ class Guard:
             result.findings += extra
             result.verdict, result.score = verdict_for(result.findings)
         details = {"files": result.files_scanned, "bytes": result.bytes_scanned, "sha256": result.sha256,
-                   "seconds": round(time.time() - t0, 1), "test_injected": inject_test,
-                   "scanners": [n for n, s in (("yara", self.scanners.yara), ("clamav", self.scanners.clamav),
-                                               ("virustotal", self.scanners.virustotal)) if s]}
+                   "seconds": round(time.time() - t0, 1), "test_injected": inject_test, "engines": result.engines}
         self.db.upsert_seen(it)
         self.db.save_scan(p.appid, it.id, it.time_updated, result, details, is_test=inject_test)
         log.info("[%s] %s %-10s score=%-3d files=%-4d %s", p.name, it.id, result.verdict.upper(), result.score,

@@ -31,6 +31,7 @@ class ScanResult:
     files_scanned: int
     bytes_scanned: int
     sha256: dict[str, str]  # path -> sha256 of every file
+    engines: dict[str, dict] = field(default_factory=dict)  # engine -> files / detections / unknown / errors
 
     def to_dict(self) -> dict:
         d = asdict(self)

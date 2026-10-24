@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS scans (
     appid INTEGER, id TEXT, version INTEGER, verdict TEXT, score INTEGER, at INTEGER, findings TEXT
 );
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS cache (engine TEXT, sha256 TEXT, value TEXT, expires INTEGER, PRIMARY KEY (engine, sha256));
+CREATE TABLE IF NOT EXISTS local_items (path TEXT PRIMARY KEY, fingerprint TEXT, verdict TEXT, scanned_at INTEGER);
 CREATE INDEX IF NOT EXISTS items_status ON items(status);
 CREATE INDEX IF NOT EXISTS items_verdict ON items(verdict);
 """
@@ -60,6 +62,15 @@ class DB:
 
     def set(self, k: str, v):
         self.x("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", k, json.dumps(v))
+
+    # --- per-file engine cache (capa, online lookups) ---
+    def cache_get(self, engine: str, sha256: str):
+        r = self.q("SELECT value FROM cache WHERE engine=? AND sha256=? AND expires>?", engine, sha256, int(time.time()))
+        return json.loads(r[0]["value"]) if r else None
+
+    def cache_put(self, engine: str, sha256: str, value, days: float):
+        self.x("INSERT OR REPLACE INTO cache(engine,sha256,value,expires) VALUES(?,?,?,?)",
+               engine, sha256, json.dumps(value), int(time.time() + days * 86400))
 
     # --- items ---
     def upsert_seen(self, it) -> bool:

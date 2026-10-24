@@ -9,6 +9,8 @@ services:
     volumes:
       - guard-data:/data          # database, SteamCMD + cached login, quarantine
       - ./custom-rules:/rules:ro  # drop your own .yar files here
+      # Protect mode: set STEAM_WORKSHOP_DIR in .env to Steam's steamapps/workshop/content folder
+      - ${STEAM_WORKSHOP_DIR:-no-protect}:/protect
     ports:
       - "127.0.0.1:8080:8080"     # dashboard, only reachable from this machine
     depends_on:
@@ -32,3 +34,4 @@ services:
 volumes:
   guard-data:
   clamav-db:
+  no-protect:  # empty stand-in when protect mode is off
