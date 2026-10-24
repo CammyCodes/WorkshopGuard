@@ -7,10 +7,11 @@ cd "$(dirname "$0")"
 OUT=fixtures/out
 rm -rf "$OUT" && mkdir -p "$OUT/plateup/9000000001" "$OUT/bo3/9000000002"
 
-MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/fixtures/FakeStealerMod:/src" -w /src/FakeStealerMod \
-    mcr.microsoft.com/dotnet/sdk:8.0 sh -c "dotnet build -c Release -o /src/bin -nologo -v q >/dev/null && ls /src/bin"
-cp fixtures/FakeStealerMod/bin/FakeStealerMod.dll "$OUT/plateup/9000000001/"
-rm -rf fixtures/FakeStealerMod/bin fixtures/FakeStealerMod/*/obj fixtures/FakeStealerMod/*/bin
+# The SDK container runs as root, so it cleans up its own build files and hands the DLL over world-writable.
+MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/fixtures/FakeStealerMod:/src" -v "$PWD/$OUT/plateup/9000000001:/out" \
+    -w /src/FakeStealerMod mcr.microsoft.com/dotnet/sdk:8.0 sh -c \
+    "dotnet build -c Release -o /tmp/bin -nologo -v q >/dev/null && cp /tmp/bin/FakeStealerMod.dll /out/ \
+     && rm -rf /src/*/obj /src/*/bin && chmod -R a+rwX /out"
 
 B="$OUT/bo3/9000000002"
 printf '{"Title":"Totally Normal Map","Type":"map"}' > "$B/workshop.json"
