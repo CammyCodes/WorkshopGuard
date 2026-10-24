@@ -50,6 +50,16 @@ class Config:
     protect_action: str = "quarantine"   # quarantine | alert
     protect_seconds: int = 60
 
+    # publisher mode: a game's own developer banning items from their Workshop
+    publisher_key: str = ""
+    publisher_apps: set[int] = field(default_factory=set)
+    auto_ban: str = "off"                # off | confirmed | malicious
+    ban_uploader: bool = False
+    uploader_ban_days: int = 0           # 0 = permanent
+    uploader_ban_reason: str = "Your Workshop upload contained malware."
+    admin_password: str = ""
+    blocklist_port: int = 8081
+
     discord_webhook_url: str = ""
     webhook_url: str = ""
     notify_on: set[str] = field(default_factory=lambda: {"malicious", "suspicious"})
@@ -99,6 +109,15 @@ def load() -> Config:
         protect_dir=Path(_env("PROTECT_DIR", "/protect")),
         protect_action=_env("PROTECT_ACTION", "quarantine").lower(),
         protect_seconds=_int("PROTECT_SECONDS", 60),
+        publisher_key=_env("PUBLISHER_KEY"),
+        publisher_apps={games.resolve(t).appid for t in _env("PUBLISHER_APPS").replace(";", ",").split(",")
+                        if t.strip()},
+        auto_ban=_env("AUTO_BAN", "off").lower(),
+        ban_uploader=_bool("BAN_UPLOADER", False),
+        uploader_ban_days=_int("UPLOADER_BAN_DAYS", 0),
+        uploader_ban_reason=_env("UPLOADER_BAN_REASON", "Your Workshop upload contained malware."),
+        admin_password=_env("ADMIN_PASSWORD"),
+        blocklist_port=_int("BLOCKLIST_PORT", 8081),
         discord_webhook_url=_env("DISCORD_WEBHOOK_URL"),
         webhook_url=_env("WEBHOOK_URL"),
         notify_on={s.strip().lower() for s in _env("NOTIFY_ON", "malicious,suspicious").split(",") if s.strip()},
@@ -107,6 +126,10 @@ def load() -> Config:
         dashboard_host=_env("DASHBOARD_HOST", "0.0.0.0"),
         extra_rules_dir=Path(_env("EXTRA_RULES_DIR", "/rules")),
     )
+    if c.auto_ban not in ("off", "confirmed", "malicious"):
+        raise ValueError("AUTO_BAN must be off, confirmed or malicious")
+    if c.publisher_key and not c.publisher_apps:
+        raise ValueError("PUBLISHER_KEY is set but PUBLISHER_APPS is empty: list the app IDs it may moderate")
     if c.protect_action not in ("quarantine", "alert"):
         raise ValueError("PROTECT_ACTION must be quarantine or alert")
     if c.backfill not in ("none", "all") and not c.backfill.isdigit():

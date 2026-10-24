@@ -25,6 +25,8 @@ scan mod code, so WorkshopGuard lets anyone who cares about a game watch it.
 - **Protects your PC**: point it at Steam's Workshop folder and new or updated mods are scanned as Steam installs
   them. Malicious ones are moved to quarantine.
 - **Tells you why**: plain-English reasons per verdict, alerts to Discord or any webhook, and a local dashboard.
+- **Lets game developers act**: ban bad items from their own game's Workshop for everyone, and give the game a
+  blocklist so it refuses to load them.
 
 Downloaded files are only ever read, never run, inside a locked-down container.
 
@@ -107,6 +109,22 @@ MetaDefender have never seen for a full scan (off by default, since uploads are 
 | MetaDefender | ~20 antivirus engines | free key |
 | MalwareBazaar | abuse.ch's database of known malware | free key |
 
+## For game developers
+
+Run it on your own game with a Steamworks **publisher key** and it can take items off your Workshop for everyone:
+
+```ini
+PUBLISHER_KEY=...          # Steamworks > Users & Permissions > Manage Groups > Web API key
+PUBLISHER_APPS=1599600     # the only apps it may act on
+ADMIN_PASSWORD=...         # protects the dashboard and its Ban buttons
+AUTO_BAN=off               # off: you review and click Ban · confirmed: auto-ban when a known-malware engine agrees
+```
+
+The dashboard gets a **review queue** and **Ban item / Ban uploader / Unban** buttons, and every action is logged and
+posted to your alert channel. Bans are reversible and nothing is ever deleted. Players who already downloaded a banned
+mod may still have it, so WorkshopGuard also serves a **blocklist** (item IDs and the flagged files' hashes) for your
+game to check before loading mods. Setup, auto-ban rules and a C# example: [docs/FOR_GAME_DEVELOPERS.md](docs/FOR_GAME_DEVELOPERS.md).
+
 ## What it can't do
 
 No scanner catches everything, and WorkshopGuard is no exception. It reads mods without running them, so:
@@ -132,6 +150,7 @@ Treat **malicious** as "remove it now and report it to Valve", **suspicious** as
 | `scan-path <game> <folder>` | Scan mods already on disk (`--deep`) |
 | `protect [--once]` | Only guard the mods on this PC |
 | `login` | Log SteamCMD in once, for games that need an account |
+| `ban` · `unban` · `ban-uploader` · `blocklist` | Game developers: moderate your own Workshop |
 | `list <game>` · `status` · `rescan --all` | Newest items · flagged items · scan everything again |
 
 Every setting is explained in [`.env.example`](.env.example). Your own YARA rules go in `custom-rules/`.

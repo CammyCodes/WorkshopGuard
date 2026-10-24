@@ -13,6 +13,7 @@ services:
       - ${STEAM_WORKSHOP_DIR:-no-protect}:/protect
     ports:
       - "127.0.0.1:8080:8080"     # dashboard, only reachable from this machine
+      - "${BLOCKLIST_BIND:-127.0.0.1}:8081:8081"  # game developers: the blocklist your game checks (see docs)
     depends_on:
       - clamav
     # Downloaded files are never run, but keep the container locked down anyway.

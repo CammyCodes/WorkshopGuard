@@ -14,6 +14,7 @@ from . import games, steam, testdata
 from .config import Config
 from .db import DB
 from .downloader import Downloader, LoginRequired
+from .moderation import Moderator
 from .notify import Notifier
 from .scan.clamav import ClamAV
 from .scan import capa_engine
@@ -74,6 +75,7 @@ class Guard:
         )
         log.info("Engines: %s", ", ".join(self.scanners.enabled()))
         self.notifier = Notifier(cfg.discord_webhook_url, cfg.webhook_url, cfg.notify_on, cfg.public_url)
+        self.moderator = Moderator(cfg, self.db, self.notifier)
 
     # --- discovery --------------------------------------------------------------------------------------------
     def discover(self, p: games.GameProfile) -> int:
@@ -199,10 +201,11 @@ class Guard:
             shutil.copytree(folder, dest)
             (dest.parent / "README.txt").write_text(
                 "Quarantined by WorkshopGuard for review. These files may be malicious: do not open or run them.\n")
+        findings = [f.to_dict() for f in result.findings]
         if notify:
-            self.notifier.maybe_send(it.to_dict(), p.name, result.verdict, result.score,
-                                     [f.to_dict() for f in result.findings], is_test=inject_test,
+            self.notifier.maybe_send(it.to_dict(), p.name, result.verdict, result.score, findings, is_test=inject_test,
                                      previous=self.db.previous_verdict(p.appid, it.id))
+        self.moderator.after_scan(p.appid, it.to_dict(), result.verdict, findings, inject_test)
         return result
 
     def _steam_findings(self, p: games.GameProfile, it: steam.Item) -> list[Finding]:

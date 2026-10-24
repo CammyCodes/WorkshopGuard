@@ -190,3 +190,94 @@ def test_capa_weights():
     assert _weigh("persistence/registry/run") == "high"
     assert _weigh("impact/cryptocurrency") == "low"       # matches words like "Dash" in normal mods
     assert _weigh("load-code/dotnet") is None              # Harmony/MonoMod do this all the time
+
+
+# --- publisher mode -------------------------------------------------------------------------------------------
+
+class _FakeAPI:
+    def __init__(self):
+        self.calls = []
+
+    def set_item_ban(self, appid, item_id, banned, reason):
+        self.calls.append(("item", appid, item_id, banned))
+        return {}
+
+    def set_uploader_ban(self, appid, steamid, days, reason):
+        self.calls.append(("uploader", appid, steamid, days))
+        return {}
+
+
+class _Notifier:
+    def moderation(self, *a):
+        pass
+
+
+def _moderator(tmp_path, auto_ban="confirmed", apps=(311210,), ban_uploader=False):
+    from types import SimpleNamespace
+    from workshopguard.db import DB
+    from workshopguard.moderation import Moderator
+    cfg = SimpleNamespace(publisher_key="k", publisher_apps=set(apps), auto_ban=auto_ban, ban_uploader=ban_uploader,
+                          uploader_ban_days=0, uploader_ban_reason="r")
+    db = DB(tmp_path / "t.db")
+    m = Moderator(cfg, db, _Notifier())
+    m.api = _FakeAPI()
+    return db, m
+
+
+def _seen(db, appid, id_, creator="7656"):
+    db.upsert_seen(steam.Item(appid, id_, title=f"Item {id_}", creator=creator, time_updated=1))
+
+
+CLAM = {"rule": "clamav.detected", "severity": "critical", "description": "ClamAV detected X", "file": "a.dll"}
+HEUR = {"rule": "dotnet.combo.dropper", "severity": "critical", "description": "dropper", "file": "a.dll"}
+
+
+def test_auto_ban_needs_confirmation(tmp_path):
+    db, m = _moderator(tmp_path, "confirmed")
+    _seen(db, 311210, "1")
+    assert m.after_scan(311210, {"id": "1", "creator": "7656"}, "malicious", [HEUR], False) is None
+    assert m.api.calls == []  # heuristics alone: left for a person
+    assert m.after_scan(311210, {"id": "1", "creator": "7656"}, "malicious", [HEUR, CLAM], False) == "banned"
+    assert m.api.calls == [("item", 311210, "1", True)]
+    assert db.item(311210, "1")["moderation"] == "banned"
+
+
+def test_auto_ban_never_touches_tests_other_apps_or_cleared(tmp_path):
+    db, m = _moderator(tmp_path, "malicious")
+    _seen(db, 311210, "1")
+    _seen(db, 1599600, "2")
+    _seen(db, 311210, "3")
+    m.clear(311210, "3", by="test")
+    assert m.after_scan(311210, {"id": "1"}, "malicious", [CLAM], True) is None        # planted test files
+    assert m.after_scan(1599600, {"id": "2"}, "malicious", [CLAM], False) is None      # not in PUBLISHER_APPS
+    assert m.after_scan(311210, {"id": "3"}, "malicious", [CLAM], False) is None       # a person cleared it
+    assert m.api.calls == []
+
+
+def test_auto_ban_off_by_default_and_uploader_ban(tmp_path):
+    db, m = _moderator(tmp_path, "off")
+    _seen(db, 311210, "1")
+    assert m.after_scan(311210, {"id": "1", "creator": "7656"}, "malicious", [CLAM], False) is None
+    (tmp_path / "b").mkdir()
+    db, m = _moderator(tmp_path / "b", "confirmed", ban_uploader=True)
+    _seen(db, 311210, "1")
+    m.after_scan(311210, {"id": "1", "creator": "7656"}, "malicious", [CLAM], False)
+    assert ("uploader", 311210, "7656", 3650) in m.api.calls
+
+
+def test_blocklist_never_blocks_shared_libraries(tmp_path):
+    import json as _j
+    db, m = _moderator(tmp_path)
+    harmony, payload = "a" * 64, "b" * 64
+    _seen(db, 311210, "good")
+    db.x("UPDATE items SET status='scanned', verdict='clean', details=? WHERE id='good'",
+         _j.dumps({"sha256": {"0Harmony.dll": harmony}}))
+    _seen(db, 311210, "bad")
+    db.x("UPDATE items SET status='scanned', verdict='malicious', details=?, findings=? WHERE id='bad'",
+         _j.dumps({"sha256": {"0Harmony.dll": harmony, "Evil.dll": payload, "readme.txt": "c" * 64}}),
+         _j.dumps([{**HEUR, "file": "Evil.dll"}, {**HEUR, "file": "0Harmony.dll", "severity": "medium"}]))
+    m.ban_item(311210, "bad", "test", by="test")
+    from workshopguard.moderation import blocklist
+    bl = blocklist(db, 311210)
+    assert [i["id"] for i in bl["items"]] == ["bad"]
+    assert bl["sha256"] == [payload]   # not Harmony (ships in a clean mod), not the unflagged readme

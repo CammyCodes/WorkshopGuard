@@ -52,8 +52,13 @@ def cmd_watch(cfg, args):
     from .pipeline import Guard
     from .web import Dashboard
     from .protect import Protector
+    from .web import BlocklistServer
     guard = Guard(cfg, watcher=True)
-    Dashboard(guard.db, cfg.dashboard_host, cfg.dashboard_port).start()
+    Dashboard(guard.db, cfg.dashboard_host, cfg.dashboard_port, guard.moderator, cfg.admin_password).start()
+    if guard.moderator.api:
+        log.info("Publisher mode: moderating %s, AUTO_BAN=%s",
+                 ", ".join(games.profile_for(a).name for a in sorted(cfg.publisher_apps)), cfg.auto_ban)
+        BlocklistServer(guard.db, cfg.blocklist_port, cfg.publisher_apps).start()
     protector = Protector(guard)
     if protector.enabled():
         protector.start_thread()
@@ -189,6 +194,50 @@ def cmd_status(cfg, args):
         print(f"{r['verdict']:<10} {r['score']:>4}  {r['id']}  {r['title']}")
 
 
+def _moderator(cfg):
+    from .db import DB
+    from .moderation import Moderator
+    from .notify import Notifier
+    db = DB(cfg.db_path)
+    return db, Moderator(cfg, db, Notifier(cfg.discord_webhook_url, cfg.webhook_url, cfg.notify_on, cfg.public_url))
+
+
+def cmd_moderate(cfg, args):
+    """ban / unban / ban-uploader / unban-uploader for the game's own developer (needs PUBLISHER_KEY)."""
+    from .moderation import PublisherError, ban_reason
+    db, mod = _moderator(cfg)
+    p = games.resolve(args.game)
+    try:
+        for target in args.ids:
+            row = db.item(p.appid, target)
+            if args.cmd == "ban":
+                if row is None:  # never scanned: record it so the blocklist and log have a title
+                    got = steam.details([target], p.appid)
+                    if got:
+                        db.upsert_seen(got[0])
+                    row = db.item(p.appid, target)
+                findings = json.loads(row["findings"] or "[]") if row else []
+                ok = mod.ban_item(p.appid, target, args.reason or ban_reason(findings), by="cli")
+            elif args.cmd == "unban":
+                ok = mod.unban_item(p.appid, target, by="cli")
+            elif args.cmd == "ban-uploader":
+                creator = row["creator"] if row else target  # an item ID, or a SteamID64 directly
+                ok = mod.ban_uploader(p.appid, row["id"] if row else "", creator, by="cli", days=args.days)
+            else:
+                ok = mod.unban_uploader(p.appid, target, by="cli")
+            print(f"{args.cmd} {target}: {'done' if ok else 'FAILED (see the log)'}")
+    except PublisherError as e:
+        print(e, file=sys.stderr)
+        return 2
+    return 0
+
+
+def cmd_blocklist(cfg, args):
+    from .moderation import blocklist
+    db, _ = _moderator(cfg)
+    print(json.dumps(blocklist(db, games.resolve(args.game).appid), indent=1))
+
+
 def cmd_rescan(cfg, args):
     from .db import DB
     db = DB(cfg.db_path)
@@ -243,6 +292,19 @@ def main(argv=None) -> int:
     s.add_argument("game")
     s.add_argument("--sort", default="mostrecent", choices=["mostrecent", "lastupdated"])
     s.add_argument("--pages", type=int, default=1)
+    for name, helptext in (("ban", "Ban Workshop items for everyone (game developers, needs PUBLISHER_KEY)"),
+                           ("unban", "Undo a ban"),
+                           ("ban-uploader", "Stop an uploader posting Workshop items for your game (item ID or SteamID)"),
+                           ("unban-uploader", "Lift an uploader ban (SteamID)")):
+        s = sub.add_parser(name, help=helptext)
+        s.add_argument("game")
+        s.add_argument("ids", nargs="+")
+        if name == "ban":
+            s.add_argument("--reason", default="", help="Shown to Steam admins only")
+        if name == "ban-uploader":
+            s.add_argument("--days", type=int, default=None, help="Default UPLOADER_BAN_DAYS (0 = permanent)")
+    s = sub.add_parser("blocklist", help="Print the blocklist your game can check at load time")
+    s.add_argument("game")
     sub.add_parser("status", help="Counts and the latest flagged items")
     s = sub.add_parser("rescan", help="Queue items for another scan (e.g. after adding rules)")
     s.add_argument("ids", nargs="*")
@@ -263,7 +325,8 @@ def main(argv=None) -> int:
         args.game = str(cfg.games[0].appid)
     cmd = args.cmd or "watch"
     fn = {"watch": cmd_watch, "scan-item": cmd_scan_item, "deep-scan": cmd_scan_item, "protect": cmd_protect, "scan-path": cmd_scan_path, "selftest": cmd_selftest,
-          "login": cmd_login, "list": cmd_list, "status": cmd_status, "rescan": cmd_rescan}[cmd]
+          "login": cmd_login, "list": cmd_list, "ban": cmd_moderate, "unban": cmd_moderate,
+          "ban-uploader": cmd_moderate, "unban-uploader": cmd_moderate, "blocklist": cmd_blocklist, "status": cmd_status, "rescan": cmd_rescan}[cmd]
     try:
         return fn(cfg, args) or 0
     except ValueError as e:

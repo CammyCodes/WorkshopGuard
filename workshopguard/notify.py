@@ -97,6 +97,24 @@ class Notifier:
         log.info("Alert %s for %s %s (%s)", "sent" if ok else "FAILED", verdict, item["id"], p["title"])
         return ok
 
+    def moderation(self, appid: int, item_id: str, title: str, action: str, reason: str, by: str) -> None:
+        """Tell the team whenever an item is banned or unbanned, by a person or automatically."""
+        if not self.enabled:
+            return
+        url = f"https://steamcommunity.com/sharedfiles/filedetails/?id={item_id}"
+        who = "automatically" if by == "auto" else f"by {by}"
+        text = f"WorkshopGuard {action} {title} ({item_id}) {who}"
+        hint = "Undo: docker compose run --rm guard unban <game> " + item_id if action == "banned" else ""
+        if self.discord_url:
+            self._post(self.discord_url, {"username": "WorkshopGuard", "allowed_mentions": {"parse": []}, "embeds": [{
+                "title": f"\U0001F528 {action.upper()}: {title}"[:256], "url": url,
+                "description": (reason or "")[:1500] + (f"\n\n{hint}" if hint else ""),
+                "color": 0xE5484D if action == "banned" else 0x30A46C,
+                "footer": {"text": f"Workshop moderation, {who}"}}]})
+        if self.webhook_url:
+            self._post(self.webhook_url, {"event": f"workshop_item_{action}", "appid": appid, "item_id": item_id,
+                                          "title": title, "url": url, "reason": reason, "by": by, "text": text})
+
     @staticmethod
     def _post(url: str, body: dict) -> bool:
         try:

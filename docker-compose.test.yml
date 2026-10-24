@@ -2,12 +2,19 @@
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm guard selftest bo3
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml logs sink
+# Publisher mode (ban buttons, auto-ban) talks to the sink's fake Steam API here, never to real Steam.
 services:
   guard:
     environment:
       DISCORD_WEBHOOK_URL: http://sink:9000/discord
       WEBHOOK_URL: http://sink:9000/json
       PUBLIC_URL: http://localhost:8080
+      # publisher mode against the fake Steam API in the sink: never real Steam
+      STEAM_PARTNER_API: http://sink:9000
+      PUBLISHER_KEY: test-key-not-real
+      PUBLISHER_APPS: "311210"
+      AUTO_BAN: confirmed
+      ADMIN_PASSWORD: test-admin
     volumes:
       - ./tests/fixtures/out:/fixtures:ro
     depends_on:

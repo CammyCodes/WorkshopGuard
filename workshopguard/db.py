@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS scans (
 );
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS cache (engine TEXT, sha256 TEXT, value TEXT, expires INTEGER, PRIMARY KEY (engine, sha256));
+CREATE TABLE IF NOT EXISTS moderation (
+    rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+    appid INTEGER, item_id TEXT, creator TEXT, action TEXT, reason TEXT, by TEXT, at INTEGER, ok INTEGER, response TEXT
+);
 CREATE TABLE IF NOT EXISTS local_items (path TEXT PRIMARY KEY, fingerprint TEXT, verdict TEXT, scanned_at INTEGER);
 CREATE INDEX IF NOT EXISTS items_status ON items(status);
 CREATE INDEX IF NOT EXISTS items_verdict ON items(verdict);
@@ -45,6 +49,9 @@ class DB:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(items)")}
+        if "moderation" not in cols:  # added in 1.1: banned | cleared (a person said it's fine)
+            self.conn.execute("ALTER TABLE items ADD COLUMN moderation TEXT")
         self.lock = threading.Lock()
 
     def q(self, sql: str, *args):
