@@ -1,0 +1,34 @@
+services:
+  guard:
+    image: ghcr.io/cammycodes/workshopguard:latest
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CLAMAV_HOST: clamav
+    volumes:
+      - guard-data:/data          # database, SteamCMD + cached login, quarantine
+      - ./custom-rules:/rules:ro  # drop your own .yar files here
+    ports:
+      - "127.0.0.1:8080:8080"     # dashboard, only reachable from this machine
+    depends_on:
+      - clamav
+    # Downloaded files are never run, but keep the container locked down anyway.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_MILTERD: "true"
+    volumes:
+      - clamav-db:/var/lib/clamav
+
+volumes:
+  guard-data:
+  clamav-db:

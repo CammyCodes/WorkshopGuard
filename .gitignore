@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/fixtures/out/
+custom-rules/*
+!custom-rules/README.md

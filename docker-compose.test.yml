@@ -1,0 +1,23 @@
+# Test overlay: adds a local webhook receiver and points both alert channels at it.
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm guard selftest bo3
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml logs sink
+services:
+  guard:
+    environment:
+      DISCORD_WEBHOOK_URL: http://sink:9000/discord
+      WEBHOOK_URL: http://sink:9000/json
+      PUBLIC_URL: http://localhost:8080
+    volumes:
+      - ./tests/fixtures/out:/fixtures:ro
+    depends_on:
+      - clamav
+      - sink
+
+  sink:
+    image: python:3.12-slim-bookworm
+    command: ["python", "-u", "/sink.py"]
+    volumes:
+      - ./tests/webhook_sink.py:/sink.py:ro
+    ports:
+      - "127.0.0.1:9000:9000"

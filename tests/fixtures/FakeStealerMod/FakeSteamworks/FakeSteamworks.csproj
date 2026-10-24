@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Stand-in for the game's Facepunch.Steamworks.dll, so the fake mod references it the way a real mod would. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>Facepunch.Steamworks.Win64</AssemblyName>
+    <RootNamespace>Steamworks</RootNamespace>
+  </PropertyGroup>
+</Project>

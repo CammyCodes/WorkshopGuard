@@ -1,0 +1,5 @@
+.git
+.env
+tests
+custom-rules
+**/__pycache__
