@@ -379,3 +379,18 @@ def test_guard_mode_catches_a_new_mod_while_the_game_is_closed(lib, monkeypatch)
     stop.set()
     t.join(5)
     assert not (lib.ws / "6666").exists() and g.st.item("ws:1599600:6666")["status"] == "quarantined"
+
+
+def test_file_the_antivirus_refuses_to_open_counts_as_malicious(lib):
+    # Microsoft's harmless AMSI test string (reversed here so this file isn't flagged); Defender's real-time
+    # protection refuses to let anything read a file containing it, which the gate must not shrug off as "unreadable"
+    sample = "6831c4841ca0-0478-9334-b168-ec3c27e7 :elpmaS tseT ISMA"[::-1].encode("utf-16-le")
+    d = lib.mod("6667", {"notes.txt": sample})
+    try:
+        (d / "notes.txt").read_bytes()
+        pytest.skip("no real-time antivirus blocking reads on this PC")
+    except OSError:
+        pass
+    _, g, _ = lib.run()
+    res = g.results["ws:1599600:6667"]
+    assert res.verdict == "malicious" and any(f.rule == "antivirus.blocked_read" for f in res.findings)

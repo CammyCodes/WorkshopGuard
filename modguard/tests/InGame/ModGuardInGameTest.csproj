@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Proves ModGuard runs inside PlateUp! itself (Unity's Mono, the game's own class libraries): a throwaway mod
+       that compiles ModGuard's source in and checks every installed mod from IModInitializer.PostActivate, logging to
+       Player.log. Not for players. Build with -p:PlateUpManaged=<PlateUp_Data\Managed folder>. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>ModGuardInGameTest</AssemblyName>
+    <PlateUpManaged Condition="'$(PlateUpManaged)' == ''">C:\Program Files (x86)\Steam\steamapps\common\PlateUp\PlateUp\PlateUp_Data\Managed</PlateUpManaged>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\*.cs" />
+    <Compile Include="..\..\samples\PlateUp\WorkshopGuardCheck.cs" />
+    <Reference Include="KitchenMods" HintPath="$(PlateUpManaged)\KitchenMods.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(PlateUpManaged)\UnityEngine.CoreModule.dll" Private="false" />
+  </ItemGroup>
+</Project>

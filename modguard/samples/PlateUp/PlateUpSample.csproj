@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compile check only: proves WorkshopGuardCheck.cs + ModGuard build against PlateUp!'s real KitchenMods and Unity
+       assemblies with C# 7.3. Build with -p:PlateUpManaged=<PlateUp_Data\Managed folder>. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <PlateUpManaged Condition="'$(PlateUpManaged)' == ''">C:\Program Files (x86)\Steam\steamapps\common\PlateUp\PlateUp\PlateUp_Data\Managed</PlateUpManaged>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\*.cs" />
+    <Reference Include="KitchenMods" HintPath="$(PlateUpManaged)\KitchenMods.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(PlateUpManaged)\UnityEngine.CoreModule.dll" Private="false" />
+  </ItemGroup>
+</Project>

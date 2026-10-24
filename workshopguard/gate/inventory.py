@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..scan.model import Finding
-from .winlock import open_locked
+from .winlock import open_locked, open_shared
 
 CHUNK = 1 << 20
 POOL = ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 4)), thread_name_prefix="hash")
@@ -90,7 +90,7 @@ def _walk(root: Path, notes: list[Finding]):
 
 def _hash(path: str, lock: bool):
     """(sha256, size, handle-or-None). Raises PermissionError if a lock was asked for and someone is writing."""
-    fh = open_locked(path) if lock else open(path, "rb")
+    fh = open_locked(path) if lock else open_shared(path)
     try:
         h = hashlib.sha256()
         size = 0
@@ -128,7 +128,7 @@ def hash_items(items: list[Item], adapter, lock: bool = True, retries: int = 3) 
             try:
                 return job, _hash(path, want_lock), None
             except PermissionError as e:  # sharing violation: Steam (or something) is writing it right now
-                if attempt + 1 < retries:
+                if attempt + 1 < retries and getattr(e, "winerror", None) not in (225, 226):
                     time.sleep(0.4 * (attempt + 1))
                     continue
                 return job, None, e
@@ -142,6 +142,9 @@ def hash_items(items: list[Item], adapter, lock: bool = True, retries: int = 3) 
             it.files[rel] = (sha, size)
             if fh is not None:
                 it.handles.append(fh)
+        elif getattr(err, "winerror", None) in (225, 226):  # ERROR_VIRUS_INFECTED / _DELETED: the antivirus refused it
+            it.notes.append(Finding("antivirus", "critical", "antivirus.blocked_read",
+                                    "Your antivirus blocked this file: it contains a virus or unwanted software", rel))
         elif isinstance(err, PermissionError):
             it.busy.append(rel)
             it.notes.append(Finding("files", "high", "files.busy",

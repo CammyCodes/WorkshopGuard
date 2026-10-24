@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Command-line front end for ModGuard: check mod folders, or print one file's analysis as JSON (used to compare
+       ModGuard with WorkshopGuard's Python engine). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\ModGuard.csproj" />
+  </ItemGroup>
+</Project>

@@ -61,26 +61,29 @@ From reading `KitchenMods.dll`, in case it's useful:
   Every other mod's DLLs are loaded with `Assembly.Load(bytes)` with no other check.
 - `-nomods` turns mods off. The gate uses it if it can't move a bad mod out of the way.
 
-### Three ways to use it, smallest first
+### Three ways to use it
 
-1. **Point players at the launch gate** (this page). No change to the game.
-2. **Run WorkshopGuard as a service** on your Workshop: it scans every new upload and update, and with a Steamworks
-   publisher key it can ban bad items (reversibly, never deleting) and publish a **blocklist**: banned item IDs plus
-   the hashes of their flagged files. See [FOR_GAME_DEVELOPERS.md](FOR_GAME_DEVELOPERS.md).
-3. **Check the blocklist in the game.** In `SteamWorkshopModSource.LoadMods()`, next to the existing `.bat` check:
+1. **Build it into the game (recommended): [ModGuard](../modguard/README.md).** The same checks in plain C# (.NET
+   Standard 2.0, C# 7.3, no dependencies), called from the mod loader before each mod loads. Paste in
+   [`WorkshopGuardCheck.cs`](../modguard/samples/PlateUp/WorkshopGuardCheck.cs), then add about six lines to
+   `SteamWorkshopModSource`, `FolderModSource` and `ModPreload`:
 
    ```csharp
-   if (WorkshopBlocklist.IsBlocked(subscribedItem.Id.Value, subscribedItem.Directory))
-   {
-       Debug.LogWarning($"skipping blocked workshop mod {subscribedItem.Id}");
-       continue;
-   }
+   Mod refused = WorkshopGuardCheck.Refuse(item.Directory, item.Id.Value, name, this);
+   if (refused != null) { list.Add(refused); continue; }
    ```
 
-   `WorkshopBlocklist` is a short class in [FOR_GAME_DEVELOPERS.md](FOR_GAME_DEVELOPERS.md#checking-it-in-a-unity-game).
-   It fetches the list once at start-up (5-second timeout, last copy cached for offline play) and hashes each mod's
-   DLLs. Blocked hashes cover re-uploads under new IDs. Files that also ship in clean mods (like `0Harmony.dll`) are
-   never listed, so one bad mod can't break good ones.
+   A refused mod becomes a `FailedDuringLoad` mod, the same way a pinned mod with a bad signature is refused, and none
+   of its code is loaded. It hashes every file, analyses only new ones (the .NET analyzer and file checks, giving the
+   same answers as the Python engine on 583 real programs), asks the player's antivirus through Windows AMSI, and
+   can check a blocklist. Tested inside PlateUp! build 26000811: about 0.4 s for nine mods once cached, and the fake
+   stealer refused.
+2. **Point players at the launch gate** (the top of this page). No change to the game.
+3. **Run WorkshopGuard as a service** on your Workshop: it scans every new upload and update with every engine (YARA,
+   ClamAV, capa...). With a Steamworks publisher key it can ban bad items (reversibly, never deleting) and publish
+   the **blocklist** ModGuard reads. See [FOR_GAME_DEVELOPERS.md](FOR_GAME_DEVELOPERS.md).
+
+With 1 and 3 together, the blanket "item ID above 3820868888" cut-off could go and new mods could load again.
 
 ### Privacy
 

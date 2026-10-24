@@ -1,0 +1,23 @@
+name: ModGuard (C#)
+
+on:
+  push:
+    paths: ["modguard/**", ".github/workflows/modguard.yml"]
+  pull_request:
+    paths: ["modguard/**", ".github/workflows/modguard.yml"]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build the library (netstandard2.0, C# 7.3, warnings are errors)
+        run: dotnet build modguard/ModGuard.csproj -c Release
+      - name: Unit tests
+        run: dotnet test modguard/tests/ModGuard.Tests -c Release

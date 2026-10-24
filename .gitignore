@@ -6,3 +6,7 @@ tests/fixtures/out/
 custom-rules/*
 !custom-rules/README.md
 .gate/
+modguard/**/bin/
+modguard/**/obj/
+modguard/bin/
+modguard/obj/

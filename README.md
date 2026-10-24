@@ -100,6 +100,9 @@ powershell -ExecutionPolicy Bypass -File scripts\install-gate.ps1     # PlateUp!
 How it works, settings and its limits: [docs/GATE.md](docs/GATE.md). **PlateUp! players and developers:** there's a
 PlateUp! edition with its own look, and a page for the game's team: [docs/PLATEUP.md](docs/PLATEUP.md).
 
+**Game developers:** the same checks as plain C# to call from your own mod loader, before each mod loads, with the
+glue for PlateUp! ready to paste in: [modguard/](modguard/README.md).
+
 ## Deep scans
 
 To throw everything at one mod:

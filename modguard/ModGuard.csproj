@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- WorkshopGuard ModGuard. Builds WorkshopGuard.ModGuard.dll, or copy src/*.cs straight into a Unity project.
+       netstandard2.0 + C# 7.3 so it compiles in any Unity from 2018.4 on (Mono or IL2CPP), with no dependencies. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>WorkshopGuard.ModGuard</AssemblyName>
+    <RootNamespace>WorkshopGuard</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>CammyCodes</Authors>
+    <Description>Checks mods before a Unity/C# game loads them: hashes, .NET code analysis, file checks, the player's antivirus and WorkshopGuard blocklists.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="tests/**;tools/**;samples/**" />
+  </ItemGroup>
+</Project>
