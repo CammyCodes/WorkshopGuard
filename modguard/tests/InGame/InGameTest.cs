@@ -47,18 +47,18 @@ public class ModGuardInGameTest : IModInitializer
                 var stealer = Environment.GetEnvironmentVariable("WG_TEST_STEALER");
                 if (folders.Count > 0)
                     Debug.Log("[WorkshopGuard] in-game test: Refuse(" + Path.GetFileName(folders[0]) + ") = " +
-                              (KitchenMods.WorkshopGuardCheck.Refuse(folders[0], 1, "clean mod", null) == null ? "null (loads)" : "REFUSED"));
+                              (KitchenMods.ModSafetyCheck.Refuse(folders[0], 1, "clean mod", null) == null ? "null (loads)" : "REFUSED"));
                 if (!string.IsNullOrEmpty(stealer) && File.Exists(stealer))
                 {
                     var bad = Path.Combine(Application.persistentDataPath, "WorkshopGuard-test", "9000000001");
                     Directory.CreateDirectory(bad);
                     File.Copy(stealer, Path.Combine(bad, "FakeStealerMod.dll"), true);
-                    var m = KitchenMods.WorkshopGuardCheck.Refuse(bad, 9000000001, "Fake stealer", null);
+                    var m = KitchenMods.ModSafetyCheck.Refuse(bad, 9000000001, "Fake stealer", null);
                     Debug.Log("[WorkshopGuard] in-game test: Refuse(fake stealer) = " + (m == null ? "null (LOADED!)" : m.Name + " " + m.State) +
-                              "; refused this launch: " + KitchenMods.WorkshopGuardCheck.Refused.Count);
+                              "; refused this launch: " + KitchenMods.ModSafetyCheck.Refused.Count);
                     Directory.Delete(bad, true);
                 }
-                KitchenMods.WorkshopGuardCheck.Finish();
+                KitchenMods.ModSafetyCheck.Finish();
                 var r2 = guard.Results;
                 Debug.Log("[WorkshopGuard] in-game test: done, " + r2.Count + " mods (" +
                           string.Join(", ", r2.GroupBy(r => r.Verdict).Select(g => g.Count() + " " + g.Key)) + ") in " +

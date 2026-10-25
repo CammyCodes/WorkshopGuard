@@ -65,11 +65,11 @@ From reading `KitchenMods.dll`, in case it's useful:
 
 1. **Build it into the game (recommended): [ModGuard](../modguard/README.md).** The same checks in plain C# (.NET
    Standard 2.0, C# 7.3, no dependencies), called from the mod loader before each mod loads. Paste in
-   [`WorkshopGuardCheck.cs`](../modguard/samples/PlateUp/WorkshopGuardCheck.cs), then add about six lines to
+   [`ModSafetyCheck.cs`](../modguard/samples/PlateUp/ModSafetyCheck.cs), then add about six lines to
    `SteamWorkshopModSource`, `FolderModSource` and `ModPreload`:
 
    ```csharp
-   Mod refused = WorkshopGuardCheck.Refuse(item.Directory, item.Id.Value, name, this);
+   Mod refused = ModSafetyCheck.Refuse(item.Directory, item.Id.Value, name, this);
    if (refused != null) { list.Add(refused); continue; }
    ```
 

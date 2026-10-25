@@ -103,6 +103,17 @@ PlateUp! edition with its own look, and a page for the game's team: [docs/PLATEU
 **Game developers:** the same checks as plain C# to call from your own mod loader, before each mod loads, with the
 glue for PlateUp! ready to paste in: [modguard/](modguard/README.md).
 
+### Your game's own look
+
+Every colour, font, picture and sentence in the gate's windows comes from a theme folder, so a game team can ship it
+as their own, with no WorkshopGuard branding at all. Here it is as **PlateUp! Mod Check**, a concept theme in
+PlateUp!'s style ([branding/plateup](branding/plateup/DESIGN.md): original art, open-licence fonts, unofficial):
+
+<p align="center"><img src="branding/plateup/preview/dialog.png" alt="PlateUp! Mod Check: a terracotta wooden-table window with a chunky blue Mod Check header and a plate-with-a-tick logo, stopping a malicious example mod and asking about a suspicious one" width="440"></p>
+
+Try it without touching anything: `.gate\venv\Scripts\pythonw.exe gate.pyw demo plateup --theme branding/plateup`.
+Make your own by copying that folder and editing its `theme.json` ([how](docs/GATE.md#your-games-own-look)).
+
 ## Deep scans
 
 To throw everything at one mod:

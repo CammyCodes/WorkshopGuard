@@ -44,13 +44,13 @@ All nine PlateUp! mods on our test PC come out clean.
 
 ## Adding it to PlateUp!
 
-1. Put `src/*.cs` and [`samples/PlateUp/WorkshopGuardCheck.cs`](samples/PlateUp/WorkshopGuardCheck.cs) in the
+1. Put `src/*.cs` and [`samples/PlateUp/ModSafetyCheck.cs`](samples/PlateUp/ModSafetyCheck.cs) in the
    KitchenMods assembly (or build `ModGuard.csproj` and reference `WorkshopGuard.ModGuard.dll`).
 2. In `SteamWorkshopModSource.LoadMods()`, next to the existing `.bat` check (`item` is the
    `SteamUGC.SubscribedItem` being loaded, `name` the mod's name):
 
    ```csharp
-   Mod refused = WorkshopGuardCheck.Refuse(item.Directory, item.Id.Value, name, this);
+   Mod refused = ModSafetyCheck.Refuse(item.Directory, item.Id.Value, name, this);
    if (refused != null)
    {
        list.Add(refused);
@@ -61,26 +61,26 @@ All nine PlateUp! mods on our test PC come out clean.
 3. In `FolderModSource.LoadMods()`, before `LoadModFromFolder` (`folder` is the mod's folder, `folderName` its name):
 
    ```csharp
-   Mod refused = WorkshopGuardCheck.Refuse(folder, 0uL, folderName, this);
+   Mod refused = ModSafetyCheck.Refuse(folder, 0uL, folderName, this);
    if (refused != null) { list.Add(refused); continue; }
    ```
 
-4. At the end of `ModPreload.LoadMods()`: `WorkshopGuardCheck.Finish();` (saves results for next launch).
+4. At the end of `ModPreload.LoadMods()`: `ModSafetyCheck.Finish();` (saves results for next launch).
 
 A refused mod is added as `ModState.FailedDuringLoad` with no packs, the same way the loader already refuses a pinned
 mod with a bad signature, so it shows up as a failed mod and none of its code is ever loaded.
-`WorkshopGuardCheck.Refused` lists the refused mods with reasons a player can read, for a message on the main menu.
+`ModSafetyCheck.Refused` lists the refused mods with reasons a player can read, for a message on the main menu.
 
-**Before start-up:** `WorkshopGuardCheck` has a `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` hook that loads the
+**Before start-up:** `ModSafetyCheck` has a `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` hook that loads the
 cache and starts fetching blocklists before the first scene, so the checks in `LoadMods` never wait on the network.
 `-nomods` skips it.
 
 **Optional, closes the last gap:** in `AssemblyModPack.TryLoadFile` and `AssetBundleModPack.TryLoadFile`, read the
-file with `WorkshopGuardCheck.ReadChecked(path)` instead of `File.ReadAllBytes(path)`. That returns the bytes only if
+file with `ModSafetyCheck.ReadChecked(path)` instead of `File.ReadAllBytes(path)`. That returns the bytes only if
 they're exactly what was checked, so nothing can swap a file between the check and the load.
 
 **Blocklist:** add your own WorkshopGuard server's feed, e.g.
-`WorkshopGuardCheck.Blocklists.Add("https://your-cdn/blocklist/1599600.json")`. With that in place, the blanket
+`ModSafetyCheck.Blocklists.Add("https://your-cdn/blocklist/1599600.json")`. With that in place, the blanket
 "item ID above 3820868888" cut-off could go, and new mods could load again.
 
 Ship ModGuard inside the game's own code, not as a Workshop mod. It contains its own rule text ("Login Data",

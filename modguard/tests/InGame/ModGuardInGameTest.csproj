@@ -10,7 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\*.cs" />
-    <Compile Include="..\..\samples\PlateUp\WorkshopGuardCheck.cs" />
+    <Compile Include="..\..\samples\PlateUp\ModSafetyCheck.cs" />
     <Reference Include="KitchenMods" HintPath="$(PlateUpManaged)\KitchenMods.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(PlateUpManaged)\UnityEngine.CoreModule.dll" Private="false" />
   </ItemGroup>

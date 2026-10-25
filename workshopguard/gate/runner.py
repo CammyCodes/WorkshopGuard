@@ -35,7 +35,7 @@ class Gate:
         self.name = self.adapter.name or self.scanner_profile_name()
         self.st = State(self.home / "gate.db")
         self.scanner = scanner.Scanner(self.home, self.cfg, self.st, self.game.appid)
-        self.ui = UI(self.name, self.cfg.splash_after, self.adapter.theme)
+        self.ui = UI(self.name, self.cfg.splash_after, self.cfg.theme or self.adapter.theme)
         self.qdir = self.home / "quarantine" / str(self.game.appid)
         self.items: list[inventory.Item] = []
         self.results: dict[str, ScanResult] = {}
@@ -131,18 +131,18 @@ class Gate:
                     continue
             ask.append(self._problem(it, res))
         if self.gc.flagged:
-            ask.append(Problem(f"game:{self.game.appid}", f"{self.name}'s own files", str(self.game.install_dir),
+            ask.append(Problem(f"game:{self.game.appid}", self.ui.s("game_files_title"), str(self.game.install_dir),
                                "game", [(f.description, f.file) for f in _top(self.gc.findings)], can_allow=True,
-                               note="If you didn't install anything into the game folder, repair it with Steam."))
+                               note=self.ui.s("note_game")))
         return ask, block
 
     def _problem(self, it, res: ScanResult) -> Problem:
-        where = (f"Steam Workshop item {it.id}" if it.kind == "workshop" else f"Local mod folder") + f" · {it.path}"
+        s = self.ui.s
+        where = (s("workshop_item", id=it.id) if it.kind == "workshop" else s("local_mod")) + f" · {it.path}"
         link = f"https://steamcommunity.com/sharedfiles/filedetails/?id={it.id}" if it.kind == "workshop" else ""
         mal = res.verdict == MALICIOUS
-        note = ("It will be moved to quarantine. Unsubscribe from it on Steam and report it."
-                if mal and it.kind == "workshop" else "It will be moved to quarantine." if mal else
-                "Left off unless you tick the box. Your answer is remembered until the mod changes.")
+        note = (s("note_malicious_workshop") if mal and it.kind == "workshop" else s("note_malicious") if mal else
+                s("note_suspicious"))
         return Problem(it.key, it.title, where, res.verdict, [(f.description, f.file) for f in _top(res.findings)],
                        can_allow=not mal, note=note, link=link)
 
@@ -185,8 +185,8 @@ class Gate:
             log.warning("moved %s aside to %s but not into the quarantine (%s)", it.path, hidden, e)
             dest = hidden
         try:
-            (dest / "WORKSHOPGUARD_README.txt").write_text(
-                f"WorkshopGuard's launch gate moved this mod here before {self.name} could load it.\n"
+            (dest / "README_QUARANTINE.txt").write_text(
+                f"{self.ui.theme.short} moved this mod here before {self.name} could load it.\n"
                 f"Verdict: {res.verdict}\nFrom: {it.path}\n\n"
                 + "\n".join(f"- {f.description} ({f.file})" for f in _top(res.findings, 12))
                 + "\n\nDon't open or run anything in this folder. Unsubscribe from it on Steam.\n"
@@ -243,9 +243,7 @@ class Gate:
         if rep.unvetted:
             log.error("game loaded UNCHECKED folders: %s", rep.unvetted)
             proc.kill()
-            self.ui.alert(f"WorkshopGuard closed {self.name}",
-                          "It started loading mods from folders that weren't checked first:\n\n"
-                          + "\n".join(rep.unvetted[:6]) + "\n\nStart the game again and they'll be checked.")
+            self.ui.alert(self.ui.s("closed_title"), self.ui.s("closed_body", folders="\n".join(rep.unvetted[:6])))
             return False
         return True
 
@@ -291,11 +289,8 @@ class Gate:
         log.info("watch: %s (%s) changed while playing: %s", it.key, it.title, res.verdict)
         if res.verdict == MALICIOUS:
             self.quarantine(it, res)
-            self.ui.alert(f"WorkshopGuard blocked an update to '{it.title}'",
-                          "Steam just downloaded an update to this mod and it looks malicious:\n\n"
-                          + "\n".join(f"•  {f.description}" for f in _top(res.findings, 4))
-                          + "\n\nIt's been moved to quarantine before it could load. The copy in this game session "
-                            "is the earlier version, which was checked. Unsubscribe from it on Steam.")
+            self.ui.alert(self.ui.s("update_title", mod=it.title),
+                          self.ui.s("update_body", reasons="\n".join(f"•  {f.description}" for f in _top(res.findings, 4))))
 
     def _verify_game(self) -> None:
         try:
@@ -314,8 +309,8 @@ class Gate:
                  sum(len(i.files) for i in self.items), (time.perf_counter() - t0) * 1000, len(todo), self.gc.status)
         if todo or self.gc.files:
             n = len(todo)
-            heading = (f"Checking {n} new or updated mod{'s' if n != 1 else ''}…" if n else
-                       f"Checking {self.name}'s files…")
+            heading = (self.ui.s("checking_one") if n == 1 else self.ui.s("checking_many", n=n) if n else
+                       self.ui.s("checking_game"))
             self.ui.run(lambda progress: self.scan(todo, progress), heading)
         for n in self.scanner.notes:
             log.warning(n)
@@ -340,12 +335,10 @@ class Gate:
         if nomods:
             if self.adapter.nomods_arg is None:
                 self.release()
-                self.ui.alert("WorkshopGuard couldn't move a blocked mod",
-                              "Its folder is in use. Close anything using it and start the game again.")
+                self.ui.alert(self.ui.s("move_title"), self.ui.s("move_body_quit"))
                 self._log_launch(t0, "move-failed")
                 return 1
-            self.ui.alert("WorkshopGuard couldn't move a blocked mod",
-                          f"Its folder is in use, so {self.name} will start with mods turned off this time.")
+            self.ui.alert(self.ui.s("move_title"), self.ui.s("move_body_nomods"))
         self.ui.close()
         pre_ms = (time.perf_counter() - t0) * 1000
         started = time.time()

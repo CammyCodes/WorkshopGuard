@@ -198,7 +198,7 @@ class Scanner:
                                    f"Known malicious file ({where}: {b['reason']})", rel))
             elif sha in self.blocklist:
                 out.append(Finding("blocklist", "critical", "blocklist.listed",
-                                   f"On the WorkshopGuard blocklist: {self.blocklist[sha]}", rel))
+                                   f"On the blocklist of banned mods: {self.blocklist[sha]}", rel))
         return out
 
     def forget_bad_cache(self) -> None:

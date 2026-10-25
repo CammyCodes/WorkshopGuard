@@ -10,6 +10,7 @@
   python -m workshopguard.gate forget <id>        drop remembered answers for a mod (it'll be asked about again)
   python -m workshopguard.gate guard [game]       stay running and check mods as Steam installs them, so even
                                                   starting the game's exe directly can't load an unchecked one
+  python -m workshopguard.gate demo [game]        show the windows with made-up example mods (changes nothing)
   python -m workshopguard.gate run <game.exe> [args]   what Steam runs (also: just the exe path)
 """
 
@@ -28,7 +29,7 @@ from pathlib import Path
 from .. import games
 from .config import GateConfig, home as gate_home
 
-COMMANDS = {"install", "uninstall", "scan", "status", "restore", "forget", "run", "guard", "help", "-h", "--help"}
+COMMANDS = {"install", "uninstall", "scan", "status", "restore", "forget", "run", "guard", "demo", "help", "-h", "--help"}
 REPO = Path(__file__).resolve().parents[2]
 
 
@@ -91,16 +92,21 @@ def cmd_run(argv: list[str]) -> int:
             gate.release()
         name = gate.name if gate else Path(argv[0]).stem
         nomods = gate.adapter.nomods_arg if gate else None
-        ui = gate.ui if gate else UI(name)
-        buttons = ("Quit", "Play without mods") if nomods else ("Quit", "Play anyway")
-        pick = ui.alert("WorkshopGuard couldn't check your mods",
-                        f"{e}\n\nYour mods haven't been checked, so the safe choice is to quit and try again. "
-                        f"Details are in {home / 'gate.log'}.", buttons)
+        ui = gate.ui if gate else UI(name, theme=_configured_theme(home))
+        buttons = (ui.s("error_quit"), ui.s("error_play_nomods") if nomods else ui.s("error_play"))
+        pick = ui.alert(ui.s("error_title"), ui.s("error_body", error=e, log=home / "gate.log"), buttons, default=0)
         ui.close()
         if pick == buttons[1]:
             cmd = list(argv) + ([nomods] if nomods else [])
             return subprocess.call(cmd, cwd=str(Path(argv[0]).parent))
         return 1
+
+
+def _configured_theme(home: Path) -> str:
+    try:
+        return GateConfig.load(home).theme or "default"
+    except RuntimeError:
+        return "default"
 
 
 def _game(token: str | None):
@@ -171,6 +177,58 @@ def cmd_guard(args: list[str], stop=None) -> int:
     return 0
 
 
+def cmd_demo(args: list[str]) -> int:
+    """What a player sees when Steam installs new mods and one is bad, with made-up mods. Nothing is scanned,
+    moved or started. `demo plateup --theme branding/plateup` shows a theme folder."""
+    from . import adapters
+    from .ui import UI, Problem
+    theme = None
+    if "--theme" in args:
+        i = args.index("--theme")
+        theme = args[i + 1]
+        args = args[:i] + args[i + 2:]
+    appid = games.resolve(args[0] if args else "plateup").appid
+    ad = adapters.for_appid(appid)
+    name = ad.name or games.profile_for(appid).name
+    ui = UI(name, 0.0, theme or GateConfig.load(gate_home()).theme or ad.theme)
+    s = ui.s
+    steps = [("Example: Free Hats (fake)", ["FreeHats.dll", "FreeHats.assets"]),
+             ("Example: Odd Mod (fake)", ["OddMod.dll", "setup.bat"]),
+             ("Example: Tidy Kitchen (fake)", ["TidyKitchen.dll", "TidyKitchen.assets", "TidyKitchen.pdb"])]
+    total = sum(len(f) for _, f in steps)
+
+    def fake_scan(progress):
+        done = 0
+        for title, files in steps:
+            for f in files:
+                progress(f"{title} · {f}", done / total)
+                time.sleep(0.7)
+                done += 1
+        progress("Done", 1.0)
+
+    ui.run(fake_scan, s("checking_many", n=3))
+    ws = r"C:\Program Files (x86)\Steam\steamapps\workshop\content\{}\{}"
+    problems = [
+        Problem("demo:1", steps[0][0], f"{s('workshop_item', id=9000000001)} · {ws.format(appid, 9000000001)}",
+                "malicious",
+                [("Microsoft Defender: Trojan:MSIL/Stealer (example)", "FreeHats.dll"),
+                 ("Reads account secrets and can send them over the internet (stealer pattern)", "FreeHats.dll"),
+                 ("Contains a Discord webhook (common exfiltration)", "FreeHats.dll")],
+                False, s("note_malicious_workshop")),
+        Problem("demo:2", steps[1][0], f"{s('workshop_item', id=9000000002)} · {ws.format(appid, 9000000002)}",
+                "suspicious", [(f"'.bat' files can run code on your PC; {name} items don't need them", "setup.bat")],
+                True, s("note_suspicious")),
+    ]
+    ans = ui.ask(problems, gate_home() / "quarantine" / str(appid))
+    if ans.action == "play":
+        msg = s("demo_body_play", kept=s("demo_kept_allowed") if ans.allow else s("demo_kept_off"))
+    else:
+        msg = s("demo_body_quit")
+    ui.alert(s("demo_title"), msg, (s("demo_close"),))
+    ui.close()
+    return 0
+
+
 def cmd_status(args: list[str]) -> int:
     from .state import State
     appid = games.resolve(args[0] if args else "plateup").appid
@@ -205,7 +263,8 @@ def cmd_restore(args: list[str]) -> int:
     if dst.exists():
         print(f"{dst} exists again (Steam re-downloaded it?); not overwriting. Quarantined copy: {src}")
     else:
-        (src / "WORKSHOPGUARD_README.txt").unlink(missing_ok=True)
+        (src / "README_QUARANTINE.txt").unlink(missing_ok=True)
+        (src / "WORKSHOPGUARD_README.txt").unlink(missing_ok=True)  # older gate versions
         shutil.move(str(src), str(dst))
         print(f"Moved back: {dst}")
     st.x("UPDATE items SET status='active', quarantine='', decision='allowed', decision_digest=digest WHERE key=?",
@@ -281,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "run":
         return cmd_run(rest)
     return {"install": lambda a: cmd_install(a), "uninstall": lambda a: cmd_install(a, remove=True),
-            "scan": cmd_scan, "status": cmd_status, "guard": cmd_guard, "restore": cmd_restore, "forget": cmd_forget}[cmd](rest)
+            "scan": cmd_scan, "status": cmd_status, "guard": cmd_guard, "demo": cmd_demo, "restore": cmd_restore, "forget": cmd_forget}[cmd](rest)
 
 
 if __name__ == "__main__":

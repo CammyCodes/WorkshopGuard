@@ -145,7 +145,7 @@ def test_malicious_mod_is_quarantined_and_the_rest_still_load(lib):
     assert not (lib.ws / "6666").exists()
     assert "EvilMod.dll" not in read_names(rep) and "GoodMod.dll" in read_names(rep)
     q = list((lib.home / "quarantine" / str(APPID)).glob("workshop-6666-*"))
-    assert q and (q[0] / "EvilMod.dll").exists() and (q[0] / "WORKSHOPGUARD_README.txt").exists()
+    assert q and (q[0] / "EvilMod.dll").exists() and (q[0] / "README_QUARANTINE.txt").exists()
     assert g.st.item("ws:1599600:6666")["status"] == "quarantined"
 
 
@@ -394,3 +394,20 @@ def test_file_the_antivirus_refuses_to_open_counts_as_malicious(lib):
     _, g, _ = lib.run()
     res = g.results["ws:1599600:6667"]
     assert res.verdict == "malicious" and any(f.rule == "antivirus.blocked_read" for f in res.findings)
+
+
+def test_theme_folder_replaces_every_word_and_colour(tmp_path):
+    from workshopguard.gate.ui import UI, load_theme
+    (tmp_path / "theme.json").write_text(json.dumps({
+        "product": "Kitchen Mod Check", "short": "Mod Check", "logo": "logo.png",
+        "colors": {"bg": "#101010"},
+        "strings": {"title_stopped_one": "{short} kept a bad mod out of {game}", "quit": "Leave", "odd": "{nope}"},
+    }), encoding="utf-8")
+    t = load_theme(tmp_path)
+    assert t.logo == tmp_path / "logo.png" and t.c("bg") == "#101010" and t.c("card") == "#1e2a38"
+    ui = UI("PlateUp!", theme=t)
+    assert ui.brand == "Kitchen Mod Check"
+    assert ui.s("title_stopped_one") == "Mod Check kept a bad mod out of PlateUp!"
+    assert ui.s("quit") == "Leave" and ui.s("play") == "Play"          # unset strings fall back
+    assert ui.s("odd") == "{nope}"                                     # an unknown placeholder never crashes
+    assert "WorkshopGuard" not in ui.s("closed_title") and "WorkshopGuard" not in ui.s("error_title")

@@ -36,6 +36,12 @@ namespace WorkshopGuard
 
         /// <summary>Where ModGuard's log lines go (Debug.Log in Unity).</summary>
         public Action<string> Log;
+
+        /// <summary>Starts every log line. Your product's name: nothing ModGuard says to players names WorkshopGuard.</summary>
+        public string LogPrefix = "[WorkshopGuard] ";
+
+        /// <summary>The name the player's antivirus sees in its logs when ModGuard asks it to scan.</summary>
+        public string ProductName = "WorkshopGuard ModGuard";
     }
 
     /// <summary>Checks mod folders before the game loads them: every file hashed, anything new analysed (.NET code,
@@ -73,7 +79,7 @@ namespace WorkshopGuard
         public IList<ModCheck> Results { get { lock (gate) return results.ToList(); } }
         public bool AntivirusAvailable { get { return av != null && av.Available; } }
 
-        void Log(string s) { var l = o.Log; if (l != null) l("[WorkshopGuard] " + s); }
+        void Log(string s) { var l = o.Log; if (l != null) l(o.LogPrefix + s); }
 
         // --- start-up --------------------------------------------------------------------------------------------
 
@@ -88,12 +94,12 @@ namespace WorkshopGuard
                 LoadCache();
                 if (o.UseWindowsAntivirus)
                 {
-                    av = new WindowsAntivirus("WorkshopGuard ModGuard");
+                    av = new WindowsAntivirus(o.ProductName);
                     if (!av.Available) Log("player's antivirus not used: " + av.Problem);
                 }
             }
             if (o.Blocklists.Count == 0) { blocklistsReady.Set(); return; }
-            var t = new Thread(FetchBlocklists) { IsBackground = true, Name = "WorkshopGuard blocklists" };
+            var t = new Thread(FetchBlocklists) { IsBackground = true, Name = "ModGuard blocklists" };
             t.Start();
         }
 
@@ -194,7 +200,7 @@ namespace WorkshopGuard
                 return File.ReadAllText(src, Encoding.UTF8);
             var req = (HttpWebRequest)WebRequest.Create(src);
             req.Timeout = req.ReadWriteTimeout = o.BlocklistTimeoutMs;
-            req.UserAgent = "WorkshopGuard-ModGuard/" + Version;
+            req.UserAgent = "ModGuard/" + Version;
             using (var resp = (HttpWebResponse)req.GetResponse())
             using (var r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 return r.ReadToEnd();
@@ -248,7 +254,7 @@ namespace WorkshopGuard
             {
                 if (itemId != 0 && blockedIds.Contains(itemId.ToString()))
                     check.Findings.Add(new Finding("blocklist", Severity.Critical, "blocklist.item",
-                        "This Workshop item is banned on the WorkshopGuard blocklist", ""));
+                        "This Workshop item is on the blocklist of banned mods", ""));
                 foreach (var file in Walk(folder, "", check.Findings))
                     CheckFile(folder, file, check);
                 int score;
@@ -317,7 +323,7 @@ namespace WorkshopGuard
                 check.Findings.Add(new Finding("known-bad", Severity.Critical, "gate.known_bad", "Known malicious file (" + reason + ")", rel));
             string listed;
             if (blockedHashes.TryGetValue(sha, out listed))
-                check.Findings.Add(new Finding("blocklist", Severity.Critical, "blocklist.listed", "On the WorkshopGuard blocklist: " + listed, rel));
+                check.Findings.Add(new Finding("blocklist", Severity.Critical, "blocklist.listed", "On the blocklist of banned mods: " + listed, rel));
 
             string name = rel.Substring(rel.LastIndexOf('/') + 1).ToLowerInvariant();
             string key = sha + "|" + name;
@@ -386,11 +392,11 @@ namespace WorkshopGuard
             string expected;
             lock (gate)
                 if (!checkedHashes.TryGetValue(Path.GetFullPath(path), out expected))
-                    throw new InvalidOperationException("WorkshopGuard never checked " + path);
+                    throw new InvalidOperationException("This file was never checked: " + path);
             var data = File.ReadAllBytes(path);
             using (var h = SHA256.Create())
                 if (Hex(h.ComputeHash(data)) != expected)
-                    throw new InvalidOperationException("WorkshopGuard: " + path + " changed after it was checked");
+                    throw new InvalidOperationException("This file changed after it was checked: " + path);
             return data;
         }
 

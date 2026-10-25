@@ -34,6 +34,9 @@ class GateConfig:
     watch_while_playing: bool = True  # pre-scan updates Steam downloads mid-session
     verify_game_files: bool = True    # notice the game's own DLLs changing without a Steam update
     splash_after: float = 0.35        # seconds of work before the window appears (no window if it's quicker)
+    # The windows' look and wording: "default", "plateup", or a theme folder such as "branding/plateup"
+    # (relative to the WorkshopGuard folder, or absolute). Empty = the game's usual one.
+    theme: str = ""
 
     @classmethod
     def load(cls, h: Path | None = None) -> GateConfig:

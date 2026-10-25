@@ -68,6 +68,7 @@ From the WorkshopGuard folder, with `.gate\venv\Scripts\python -m workshopguard.
 | `forget <id>` | Forget your answer about a mod, so you're asked again |
 | `install` / `uninstall [game]` | Set or clear the Steam launch options |
 | `guard [game]` | Stay running and check mods as Steam installs them, even when the game isn't running |
+| `demo [game] [--theme <folder>]` | Show the windows with made-up example mods (scans, moves and starts nothing) |
 
 Settings go in `%LOCALAPPDATA%\WorkshopGuard\gate.json` (all optional). That folder also holds the gate's database, its
 log (`gate.log`) and the quarantine.
@@ -80,12 +81,50 @@ log (`gate.log`) and the quarantine.
   "clamav": "",
   "malwarebazaar_key": "",
   "watch_while_playing": true,
-  "verify_game_files": true
+  "verify_game_files": true,
+  "theme": ""
 }
 ```
 
 `suspicious` can be `ask`, `block` or `allow`. `blocklists` takes URLs or file paths in the format a WorkshopGuard
 server publishes (`/blocklist/<appid>.json`), so a game community can share one. Online lookups send only file hashes.
+`theme` picks the windows' look (below).
+
+## Your game's own look
+
+The windows take everything from a theme: `default` (WorkshopGuard), `plateup` (WorkshopGuard's PlateUp! edition), or
+a theme folder. A folder can rename the product, and replace every colour, font, picture and sentence a player sees,
+so a game can ship it under its own name with no WorkshopGuard branding at all.
+
+<p align="center"><img src="../branding/plateup/preview/dialog.png" alt="The decision window themed as PlateUp! Mod Check" width="400"> <img src="../branding/plateup/preview/progress.png" alt="The scan window themed as PlateUp! Mod Check" width="400"></p>
+
+[branding/plateup](../branding/plateup/DESIGN.md) is a complete example, **PlateUp! Mod Check**. It's an unofficial
+concept with original art and open-licence fonts, plus mock-ups of how the game itself could show a blocked mod. To
+make your own, copy that folder and edit `theme.json`:
+
+```json
+{
+  "product": "PlateUp! Mod Check",
+  "short": "Mod Check",
+  "logo": "art/logo.png",
+  "icon": "art/icon-32.png",
+  "header": "art/header.png",
+  "fonts": {"files": ["fonts/Baloo2-Bold.ttf", "fonts/VarelaRound-Regular.ttf"], "body": "Varela Round", "heading": "Baloo 2"},
+  "colors": {"bg": "#7f5240", "card": "#6b595e", "text": "#fffaf6", "primary": "#4466c0", "...": "..."},
+  "strings": {"title_stopped_one": "{short} kept a dangerous mod out of the kitchen", "...": "..."}
+}
+```
+
+- **Pictures:** the logo is a 512 px PNG shown at 64 px, the icon is 32 px, and the optional header is a 620 x 110
+  strip across the top of the decision window.
+- **Fonts:** load from the folder for the gate's process only; nothing is installed. Use static `.ttf` files whose
+  licence allows sharing them (SIL OFL fonts do).
+- **Colours and sentences:** anything you leave out falls back to the default. The full list of keys is in
+  `workshopguard/gate/ui.py` (`COLORS`, `STRINGS`). Sentences can use `{game}`, `{short}` and the placeholders the
+  default text uses.
+
+Then set `"theme": "branding/<yours>"` in `gate.json`, or try it with
+`demo <game> --theme branding/<yours>`.
 
 ## What it can't do
 

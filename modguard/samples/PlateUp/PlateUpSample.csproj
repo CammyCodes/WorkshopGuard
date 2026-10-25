@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Compile check only: proves WorkshopGuardCheck.cs + ModGuard build against PlateUp!'s real KitchenMods and Unity
+  <!-- Compile check only: proves ModSafetyCheck.cs + ModGuard build against PlateUp!'s real KitchenMods and Unity
        assemblies with C# 7.3. Build with -p:PlateUpManaged=<PlateUp_Data\Managed folder>. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>

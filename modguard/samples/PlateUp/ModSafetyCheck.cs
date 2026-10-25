@@ -1,10 +1,11 @@
-// WorkshopGuard for PlateUp!: the glue between ModGuard and KitchenMods. Add this file and ModGuard's src/*.cs (or
+// PlateUp! mod safety check: the glue between ModGuard and KitchenMods. Add this file and ModGuard's src/*.cs (or
 // WorkshopGuard.ModGuard.dll) to the KitchenMods assembly, then add the calls shown in modguard/README.md:
 //   SteamWorkshopModSource.LoadMods  next to the existing .bat check (item = the SubscribedItem being loaded):
-//       var refused = WorkshopGuardCheck.Refuse(item.Directory, item.Id.Value, name, this);
+//       var refused = ModSafetyCheck.Refuse(item.Directory, item.Id.Value, name, this);
 //       if (refused != null) { list.Add(refused); continue; }
 //   FolderModSource.LoadMods         the same, with (folder, 0, folderName, this)
-//   ModPreload.LoadMods              after the sources have run: WorkshopGuardCheck.Finish();
+//   ModPreload.LoadMods              after the sources have run: ModSafetyCheck.Finish();
+// Nothing in what players see or in the game's log names WorkshopGuard: set Product to your own name.
 // MIT licence, github.com/CammyCodes/WorkshopGuard. Unofficial; not made by It's Happening.
 using System.Collections.Generic;
 using System.IO;
@@ -14,10 +15,14 @@ using WorkshopGuard;
 
 namespace KitchenMods
 {
-    public static class WorkshopGuardCheck
+    public static class ModSafetyCheck
     {
-        /// <summary>Blocklists to check (WorkshopGuard's format). Host your own WorkshopGuard server's
-        /// /blocklist/1599600.json behind HTTPS, or leave it empty to rely on ModGuard's own checks.</summary>
+        /// <summary>The name in log lines and the player's antivirus logs.</summary>
+        public static string Product = "PlateUp! Mod Check";
+
+        /// <summary>Blocklists to check: banned item IDs and the hashes of their bad files, in the JSON format a
+        /// WorkshopGuard server publishes at /blocklist/1599600.json. Host your own behind HTTPS, or leave it empty to
+        /// rely on ModGuard's own checks.</summary>
         public static readonly List<string> Blocklists = new List<string>();
 
         static ModGuard guard;
@@ -31,11 +36,13 @@ namespace KitchenMods
                 {
                     guard = new ModGuard(new ModGuardOptions
                     {
-                        CacheDirectory = Path.Combine(Application.persistentDataPath, "WorkshopGuard"),
+                        CacheDirectory = Path.Combine(Application.persistentDataPath, "ModCheck"),
                         Blocklists = Blocklists,
                         UseWindowsAntivirus = true,
                         BlockSuspicious = false,
                         Log = Debug.Log,
+                        LogPrefix = "[" + Product + "] ",
+                        ProductName = Product,
                     });
                 }
                 return guard;
@@ -63,10 +70,10 @@ namespace KitchenMods
             if (check.Allowed)
             {
                 if (check.Verdict == Verdict.Suspicious)
-                    Debug.LogWarning("[WorkshopGuard] loading " + name + " but it looks unusual: " + check.Summary());
+                    Debug.LogWarning("[" + Product + "] loading " + name + " but it looks unusual: " + check.Summary());
                 return null;
             }
-            Debug.LogError("[WorkshopGuard] refusing to load " + name + " (" + id + "): " + check.Summary());
+            Debug.LogError("[" + Product + "] refusing to load " + name + " (" + id + "): " + check.Summary());
             lock (refused) refused.Add(check);
             var mod = new Mod(id, name);
             mod.State = ModState.FailedDuringLoad;

@@ -39,7 +39,7 @@ namespace WorkshopGuard
                 Available = true;
                 // AMSI can be present with nothing behind it (antivirus off, or one that doesn't support AMSI):
                 // then every scan fails, so say so now rather than leave every file "not fully checked"
-                if (Scan(System.Text.Encoding.UTF8.GetBytes("WorkshopGuard ModGuard probe"), "probe") == Result.Error)
+                if (Scan(System.Text.Encoding.UTF8.GetBytes("mod check probe"), "probe") == Result.Error)
                 {
                     Available = false;
                     Problem = "no antivirus is answering Windows AMSI";
