@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report malware it missed (private)
+    url: https://github.com/CammyCodes/WorkshopGuard/security/advisories/new
+    about: A hash and the Workshop ID is enough. Never attach the malware itself.
+  - name: Questions and ideas
+    url: https://github.com/CammyCodes/WorkshopGuard/discussions
+    about: Setting it up, using it for your game, or wiring ModGuard into a mod loader.

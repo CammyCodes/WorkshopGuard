@@ -1,0 +1,38 @@
+name: Add or fix a game
+description: A game WorkshopGuard doesn't know yet, or one that won't download or scan properly.
+title: "Game: "
+labels: ["game"]
+body:
+  - type: input
+    id: game
+    attributes:
+      label: Game and Steam app ID
+      description: The number in its store URL, store.steampowered.com/app/<this>/...
+      placeholder: Teardown (1167630)
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of mods does it have?
+      multiple: true
+      options:
+        - C# / .NET DLLs (Unity, BepInEx, MelonLoader...)
+        - Lua scripts
+        - Other scripts (Python, JavaScript, Squirrel...)
+        - Native DLLs
+        - Maps and assets only
+        - Not sure
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happens
+      description: For a game that doesn't work yet, paste the `selftest <game>` output.
+      render: text
+  - type: textarea
+    id: normal
+    attributes:
+      label: What a normal mod looks like
+      description: |
+        The files a mod for this game should contain, and anything that should never be in one. This is what the
+        per-game file checks are built from.

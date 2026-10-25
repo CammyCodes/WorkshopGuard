@@ -88,6 +88,10 @@ Ship ModGuard inside the game's own code, not as a Workshop mod. It contains its
 
 ## Using it in any game
 
+Install it from NuGet with `dotnet add package WorkshopGuard.ModGuard`. For Unity, put `WorkshopGuard.ModGuard.dll`
+from the [latest release](https://github.com/CammyCodes/WorkshopGuard/releases/latest) in `Assets/Plugins`, or copy
+`src/*.cs` in.
+
 ```csharp
 using WorkshopGuard;
 

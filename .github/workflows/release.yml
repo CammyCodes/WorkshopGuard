@@ -1,0 +1,84 @@
+name: Release
+
+# Push a tag like v1.0.0. This publishes ModGuard to NuGet and makes the GitHub release; docker.yml tags the image.
+# NuGet uses trusted publishing (no stored API key): a nuget.org policy for this repo, workflow file release.yml and
+# environment "release", plus the NUGET_USER secret (the nuget.org profile name, not an email).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  nuget:
+    runs-on: windows-latest  # so the AMSI tests run too
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Check the tag matches the version in the code
+        shell: bash
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          grep -q "<Version>$v</Version>" modguard/ModGuard.csproj || { echo "ModGuard.csproj isn't $v"; exit 1; }
+          grep -q "__version__ = \"$v\"" workshopguard/__init__.py || { echo "workshopguard/__init__.py isn't $v"; exit 1; }
+          grep -q "^## $v " CHANGELOG.md || { echo "CHANGELOG.md has no $v section"; exit 1; }
+
+      - name: Build and test
+        run: |
+          dotnet build modguard/ModGuard.csproj -c Release -p:ContinuousIntegrationBuild=true
+          dotnet test modguard/tests/ModGuard.Tests -c Release
+
+      - name: Pack
+        run: dotnet pack modguard/ModGuard.csproj -c Release --no-build -o out -p:ContinuousIntegrationBuild=true
+
+      - name: NuGet login (short-lived key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet
+        shell: bash
+        run: dotnet nuget push out/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modguard
+          path: |
+            out/*.nupkg
+            out/*.snupkg
+            modguard/bin/Release/netstandard2.0/WorkshopGuard.ModGuard.dll
+            modguard/bin/Release/netstandard2.0/WorkshopGuard.ModGuard.xml
+
+  github-release:
+    needs: nuget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: modguard
+          path: assets
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+          cat docs/release-footer.md >> notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "WorkshopGuard ${GITHUB_REF_NAME#v}" --notes-file notes.md \
+            $(find assets -type f \( -name '*.nupkg' -o -name '*.snupkg' -o -name '*.dll' -o -name '*.xml' \))

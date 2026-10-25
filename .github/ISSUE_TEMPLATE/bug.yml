@@ -1,0 +1,40 @@
+name: Bug
+description: Something in WorkshopGuard is broken (not a detection question).
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Found a way for a mod to get past the launch gate, or a leak of a login or key? Please use the
+        [private report](https://github.com/CammyCodes/WorkshopGuard/security/advisories/new) instead.
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part
+      options:
+        - Docker scanner
+        - Dashboard or alerts
+        - Launch gate (Windows)
+        - ModGuard (C#)
+        - Publisher mode (bans, blocklist)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        `docker compose logs guard`, or the gate's `gate.log`. Remove webhook URLs, keys and your Steam account
+        name before pasting.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version and system
+      placeholder: 1.0.0, Windows 11 / Docker on Ubuntu 24.04

@@ -1,0 +1,55 @@
+name: False alarm
+description: WorkshopGuard flagged a mod that's actually fine.
+title: "False alarm: "
+labels: ["false alarm"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks: a false alarm is a bug in WorkshopGuard, not a mark against the mod.
+        If you're the mod's author and would rather keep your code out of a public issue, use the
+        [private report](https://github.com/CammyCodes/WorkshopGuard/security/advisories/new) instead.
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      placeholder: PlateUp! (1599600)
+    validations:
+      required: true
+  - type: input
+    id: item
+    attributes:
+      label: Workshop item
+      description: The item ID or link, or the mod's name and where it came from.
+      placeholder: https://steamcommunity.com/sharedfiles/filedetails/?id=...
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did you see it?
+      options:
+        - Docker scanner (dashboard or alert)
+        - Launch gate
+        - ModGuard inside a game
+        - Deep scan
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: What it said
+      description: Paste the verdict and findings (the dashboard, the gate's window or `deep-scan` output).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's fine
+      description: What the flagged code is for, if you know (for example "it opens the mod's wiki page in a browser").
+  - type: input
+    id: version
+    attributes:
+      label: WorkshopGuard version
+      placeholder: 1.0.0, or the image tag / commit

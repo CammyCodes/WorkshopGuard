@@ -5,6 +5,7 @@
   <img alt="Runs in Docker" src="https://img.shields.io/badge/runs%20in-Docker-4A90E2">
   <img alt="Engines" src="https://img.shields.io/badge/engines-7%20local%20%2B%203%20online-2E68B6">
   <img alt="Any game" src="https://img.shields.io/badge/games-any%20with%20a%20Workshop-E2484D">
+  <a href="https://www.nuget.org/packages/WorkshopGuard.ModGuard"><img alt="NuGet" src="https://img.shields.io/nuget/v/WorkshopGuard.ModGuard?label=NuGet&color=004880"></a>
   <a href="https://github.com/CammyCodes/WorkshopGuard/actions"><img alt="CI" src="https://github.com/CammyCodes/WorkshopGuard/actions/workflows/docker.yml/badge.svg"></a>
 </p>
 
@@ -194,6 +195,13 @@ docker compose run --rm --entrypoint sh -v ./tests:/app/tests:ro guard -c "pip i
 `docker-compose.test.yml` adds a local webhook receiver for testing alerts. The fixtures aren't malware: nothing in
 them is ever called, and every address is on the reserved `.invalid` domain. The banner is drawn by
 `tools/logo/make_logo.py`.
+
+## Help and reporting
+
+- **Malware it missed, or a hole in WorkshopGuard:** report it privately, see [SECURITY.md](SECURITY.md).
+- **A mod flagged by mistake:** open a [False alarm](https://github.com/CammyCodes/WorkshopGuard/issues/new?template=false_alarm.yml) issue.
+- **Questions, ideas, using it for your game:** [Discussions](https://github.com/CammyCodes/WorkshopGuard/discussions).
+- **Contributing rules, games or loader integrations:** [CONTRIBUTING.md](CONTRIBUTING.md). What changed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 

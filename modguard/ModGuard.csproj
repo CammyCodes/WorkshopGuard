@@ -14,8 +14,24 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
+    <!-- NuGet package. CI sets ContinuousIntegrationBuild so Source Link maps to the tagged commit. -->
+    <PackageId>WorkshopGuard.ModGuard</PackageId>
+    <Title>WorkshopGuard ModGuard</Title>
+    <Copyright>Copyright (c) 2026 CammyCodes</Copyright>
+    <PackageTags>modding;mods;malware;security;steam-workshop;unity;mod-loader;antivirus</PackageTags>
+    <PackageProjectUrl>https://github.com/CammyCodes/WorkshopGuard/tree/main/modguard</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/CammyCodes/WorkshopGuard</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>https://github.com/CammyCodes/WorkshopGuard/blob/main/CHANGELOG.md</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="tests/**;tools/**;samples/**" />
+    <None Include="PACKAGE.md;icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>
